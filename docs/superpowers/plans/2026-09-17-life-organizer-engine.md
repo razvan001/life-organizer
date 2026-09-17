@@ -594,10 +594,10 @@ class GoalTreeParserTest {
     }
 
     @Test
-    void parsesAllTenGoalsWithDefaults() {
+    void parsesAllNineGoalsWithDefaults() {
         GoalTree tree = new GoalTreeParser().parse(USER_GOAL_TREE);
 
-        assertThat(tree.goals()).hasSize(10);
+        assertThat(tree.goals()).hasSize(9);
         assertThat(tree.goals()).allMatch(g -> g.priority() == 3);
     }
 
