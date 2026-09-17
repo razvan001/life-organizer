@@ -90,7 +90,7 @@ life-organizer/
 - `PlanHistorySummarizer`: `@Scheduled` nightly (and catch-up on startup) builds a deterministic text summary per past day from BlockEvent log ("Thu 2026-09-17: Gym done 07:00; Claude cert postponed 18:00, reason: tired after gym; Social done") → indexed.
 - `MemorySearch.search(query, k, sourceTypes?, dateFrom?)`: Voyage query embedding (`input_type: query`) → pgvector cosine top-k with metadata filters.
 
-**Planning agent (`ai/agent/`):** Claude tool-use loop (SDK tool runner or manual loop, max 10 iterations, token usage logged). System prompt: role, "never assume an applied change; always simulate, then propose", today's date. Tools:
+**Planning agent (`ai/agent/`):** Manual Claude tool-use loop (chosen over the beta tool runner so the server can enforce simulate-before-propose and the iteration cap). Max 10 iterations, token usage logged. System prompt: role, "never assume an applied change; always simulate, then propose", today's date. Tools:
 | Tool | Purpose |
 |---|---|
 | `get_today_plan` / `get_week_progress` | Current blocks, quota done vs target, postpone stats |
