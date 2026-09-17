@@ -1312,8 +1312,17 @@ package com.lifeorganizer.domain;
 import java.time.LocalDate;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Objects;
 
 public record DayPlan(LocalDate date, List<Block> blocks, List<String> warnings) {
+
+    public DayPlan {
+        Objects.requireNonNull(date, "date");
+        Objects.requireNonNull(blocks, "blocks");
+        Objects.requireNonNull(warnings, "warnings");
+        blocks = List.copyOf(blocks);
+        warnings = List.copyOf(warnings);
+    }
 
     public List<Block> blocksInOrder() {
         return blocks.stream().sorted(Comparator.comparing(Block::start)).toList();
@@ -1446,11 +1455,27 @@ Create `backend/src/main/java/com/lifeorganizer/engine/WeekPlan.java`:
 package com.lifeorganizer.engine;
 
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public record WeekPlan(Map<LocalDate, List<Unit>> unitsByDate, List<String> warnings) {}
+public record WeekPlan(Map<LocalDate, List<Unit>> unitsByDate, List<String> warnings) {
+
+    public WeekPlan {
+        Objects.requireNonNull(unitsByDate, "unitsByDate");
+        Objects.requireNonNull(warnings, "warnings");
+        // Collections.unmodifiableMap(new LinkedHashMap<>(...)), not Map.copyOf: Map.copyOf
+        // does not preserve insertion order, which would silently break the
+        // Monday->Sunday iteration order WeekAllocator builds this map with.
+        unitsByDate = Collections.unmodifiableMap(new LinkedHashMap<>(unitsByDate));
+        warnings = List.copyOf(warnings);
+    }
+}
 ```
+
+*(Amended after Task 6's review: the original draft omitted validation on `DayPlan`/`WeekPlan` and silently dropped overflow minutes in `allocateDuration` — both fixed per human decision. A first attempt at the `WeekPlan` fix used `Map.copyOf`, which broke the mandated `LinkedHashMap` ordering; corrected to the order-preserving wrap above.)*
 
 Create `backend/src/main/java/com/lifeorganizer/engine/WeekAllocator.java`:
 
@@ -1548,6 +1573,10 @@ public final class WeekAllocator {
                 unitsByDate.get(date).add(new Unit(allocation.goal().id() + "-chunk-" + date, allocation.goal(), chunk, allocation.goal().preferredTime(), null));
                 remaining -= chunk;
                 dayOffset++;
+            }
+            if (remaining > 0) {
+                warnings.add(allocation.goal().name() + " could not fit " + remaining + " of its "
+                    + allocation.minutesPerWeek() + " weekly minutes (ran out of days)");
             }
         }
     }
