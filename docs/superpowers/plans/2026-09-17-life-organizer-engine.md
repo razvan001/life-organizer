@@ -363,14 +363,24 @@ Create `backend/src/main/java/com/lifeorganizer/domain/GoalTree.java`:
 package com.lifeorganizer.domain;
 
 import java.util.List;
+import java.util.Objects;
 
 public record GoalTree(List<Category> categories, List<Goal> goals) {
+
+    public GoalTree {
+        Objects.requireNonNull(categories, "categories");
+        Objects.requireNonNull(goals, "goals");
+        categories = List.copyOf(categories);
+        goals = List.copyOf(goals);
+    }
 
     public List<Goal> goalsIn(Category category) {
         return goals.stream().filter(g -> g.category().equals(category)).toList();
     }
 }
 ```
+
+*(Amended after Task 2's review: the original draft omitted the compact constructor, breaking the Global Constraint that every record validates its own invariants — fixed per human decision to null-check and defensively copy both lists.)*
 
 Create `backend/src/main/java/com/lifeorganizer/domain/Constraint.java`:
 
