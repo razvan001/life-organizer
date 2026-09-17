@@ -1091,8 +1091,10 @@ class GoalWeightingTest {
 
         List<GoalAllocation> result = new GoalWeighting().allocate(List.of(urgent, normal), 300, today, 30);
 
-        assertThat(result.get(0).minutesPerWeek()).isEqualTo(200);
-        assertThat(result.get(1).minutesPerWeek()).isEqualTo(100);
+        // weight urgent=3*2=6, normal=3*1=3, total=9, 10 grid units of 30m:
+        // raw 6.67/3.33 -> floor 6/3 (sum 9, remainder 1) -> remainder to urgent (larger fraction) -> 7/3 units.
+        assertThat(result.get(0).minutesPerWeek()).isEqualTo(210);
+        assertThat(result.get(1).minutesPerWeek()).isEqualTo(90);
     }
 
     @Test
