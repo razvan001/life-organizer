@@ -92,6 +92,9 @@ public final class WeekAllocator {
                 remaining -= chunk;
                 dayOffset++;
             }
+            if (remaining > 0) {
+                warnings.add(allocation.goal().name() + " could not fit " + remaining + " of its " + allocation.minutesPerWeek() + " weekly minutes (ran out of days)");
+            }
         }
     }
 

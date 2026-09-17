@@ -72,4 +72,23 @@ class WeekAllocatorTest {
         Set<DayOfWeek> days = plan.unitsByDate().keySet().stream().map(LocalDate::getDayOfWeek).collect(java.util.stream.Collectors.toSet());
         assertThat(days).isEqualTo(EnumSet.allOf(DayOfWeek.class));
     }
+
+    @Test
+    void warnsWhenDurationQuotaCannotFitAllMinutes() {
+        Goal cert = new Goal("career-cert", career, "Claude certification", 5, null, 60, Energy.MEDIUM, PreferredTime.EVENING);
+        DurationQuota learning = new DurationQuota("Learning", 480, "career");
+
+        WeekPlan plan = allocator.allocate(List.of(cert), List.of(learning), monday);
+
+        // 480 minutes / 60 minutes per block = 8 blocks needed, but only 7 days available
+        // so 60 minutes should be dropped
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("ran out of days"));
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("60"));
+
+        int certMinutes = plan.unitsByDate().values().stream()
+            .flatMap(List::stream)
+            .filter(u -> u.goal().id().equals("career-cert"))
+            .mapToInt(Unit::minutes).sum();
+        assertThat(certMinutes).isEqualTo(420); // 7 blocks * 60 minutes
+    }
 }
