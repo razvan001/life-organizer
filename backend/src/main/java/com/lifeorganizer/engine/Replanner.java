@@ -1,0 +1,67 @@
+package com.lifeorganizer.engine;
+
+import com.lifeorganizer.domain.*;
+
+import java.time.LocalDate;
+import java.util.*;
+
+/**
+ * Applies a single PlanEvent to a week of plans with minimal change: only the
+ * affected block (and, for postpone, the target slot) is touched.
+ */
+public final class Replanner {
+
+    private final PostponePolicy postponePolicy;
+
+    public Replanner(PostponePolicy postponePolicy) {
+        this.postponePolicy = postponePolicy;
+    }
+
+    public ReplanResult apply(Map<LocalDate, DayPlan> weekPlans, PlanEvent event) {
+        return switch (event) {
+            case CancelBlock c -> setStatus(weekPlans, c.blockId(), BlockStatus.CANCELLED, "Cancelled");
+            case MarkDone d -> setStatus(weekPlans, d.blockId(), BlockStatus.DONE, "Marked done");
+            case PostponeBlock p -> postponePolicy.postpone(weekPlans, p);
+            case SetEnergy e -> setEnergy(weekPlans, e);
+            case AddAdhoc a -> addAdhoc(weekPlans, a);
+        };
+    }
+
+    private ReplanResult setStatus(Map<LocalDate, DayPlan> weekPlans, String blockId, BlockStatus status, String verb) {
+        for (Map.Entry<LocalDate, DayPlan> entry : weekPlans.entrySet()) {
+            DayPlan plan = entry.getValue();
+            Optional<Block> match = plan.blocks().stream().filter(b -> b.id().equals(blockId)).findFirst();
+            if (match.isPresent()) {
+                Block original = match.get();
+                Block updatedBlock = new Block(original.id(), original.date(), original.start(), original.end(), original.title(),
+                    original.kind(), original.goalId(), status, original.postponeCount(), original.flagged(), original.reason());
+                List<Block> blocks = new ArrayList<>(plan.blocks());
+                blocks.replaceAll(b -> b.id().equals(blockId) ? updatedBlock : b);
+                Map<LocalDate, DayPlan> updated = new LinkedHashMap<>(weekPlans);
+                updated.put(entry.getKey(), new DayPlan(plan.date(), blocks, plan.warnings()));
+                return new ReplanResult(updated, List.of(verb + " " + original.title()));
+            }
+        }
+        return new ReplanResult(weekPlans, List.of("Block " + blockId + " not found"));
+    }
+
+    private ReplanResult setEnergy(Map<LocalDate, DayPlan> weekPlans, SetEnergy event) {
+        // Phase 1: recorded as a change note only; energy-based re-sorting of
+        // remaining units is added once PlanService (Phase 1b) can re-run WeekAllocator.
+        return new ReplanResult(weekPlans, List.of("Energy set to " + event.level() + " for rest of day"));
+    }
+
+    private ReplanResult addAdhoc(Map<LocalDate, DayPlan> weekPlans, AddAdhoc event) {
+        DayPlan plan = weekPlans.get(event.date());
+        if (plan == null) {
+            return new ReplanResult(weekPlans, List.of("No plan exists for " + event.date()));
+        }
+        Block adhoc = new Block("adhoc-" + event.date() + "-" + event.start(), event.date(), event.start(), event.end(),
+            event.title(), BlockKind.ADHOC, null, BlockStatus.PLANNED, 0, false, null);
+        List<Block> blocks = new ArrayList<>(plan.blocks());
+        blocks.add(adhoc);
+        Map<LocalDate, DayPlan> updated = new LinkedHashMap<>(weekPlans);
+        updated.put(event.date(), new DayPlan(plan.date(), blocks, plan.warnings()));
+        return new ReplanResult(updated, List.of("Added " + event.title() + " at " + event.start()));
+    }
+}
