@@ -1818,7 +1818,21 @@ public final class DayScheduler {
         return null;
     }
 
-    private record Interval(LocalTime start, LocalTime end) {}
+    private record Interval(LocalTime start, LocalTime end) {
+        Interval {
+            Objects.requireNonNull(start, "start");
+            Objects.requireNonNull(end, "end");
+            if (!end.isAfter(start)) {
+                throw new IllegalArgumentException("end must be after start");
+            }
+        }
+    }
+
+    // Amended after Task 7's review: the original draft omitted validation on the
+    // private Interval record - fixed per human decision, matching Block's pattern.
+    // Both construction sites in freeGaps() are guarded by an isAfter check
+    // immediately above them, so this can never actually throw - it's the same
+    // "records validate invariants" discipline applied even to a private helper type.
 
     private List<Interval> freeGaps(LocalTime dayStart, LocalTime dayEnd, List<Block> placed) {
         List<Block> sorted = placed.stream().sorted(Comparator.comparing(Block::start)).toList();
