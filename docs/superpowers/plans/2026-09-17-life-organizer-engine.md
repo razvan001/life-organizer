@@ -2013,9 +2013,12 @@ public record Conflict(ConflictType type, String message, List<String> relatedBl
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(relatedBlockIds, "relatedBlockIds");
+        relatedBlockIds = List.copyOf(relatedBlockIds);
     }
 }
 ```
+
+*(Amended after Task 8's review: the original draft omitted the defensive copy on `relatedBlockIds` - fixed per human decision, matching `DayPlan`/`GoalTree`'s pattern.)*
 
 Create `backend/src/main/java/com/lifeorganizer/engine/ConflictDetector.java`:
 
