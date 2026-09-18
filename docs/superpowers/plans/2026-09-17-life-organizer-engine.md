@@ -2554,3 +2554,478 @@ Expected: BUILD SUCCESS, all tests across every task green.
 git add backend
 git commit -m "feat: add PlanEvent hierarchy, PostponePolicy, and Replanner" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
 ```
+
+---
+
+## Post-review addendum (Tasks 10-11)
+
+Tasks 1-9 each passed their own task-scoped review, but a **final whole-branch review** (after all 9 tasks) found that the pieces don't compose correctly end to end, plus a few crash-on-user-text bugs and two records that escaped the validation sweep. Root cause of the composition bug: `WeekAllocator.allocateDuration` restarted its day-placement cursor at 0 for every goal *and* every `DurationQuota` constraint, so on the user's real input all duration-quota work piled onto Monday (Sunday got 0 minutes) and the Social evening-quota goal was silently squeezed out by the time `DayScheduler` ran. Separately, `DayScheduler`'s own interface note ("callers pass units pre-sorted by priority") was never actually implemented by `WeekAllocator`.
+
+**Known, deliberate scope note carried over from Task 7:** `GoalTreeParser` always assigns `priority=3`/`PreferredTime.ANY` to every goal (Phase 1a has no Setup UI yet for the user to set differentiated priorities) — Task 7's own golden test already documented that reproducing the *exact* illustrative example (Claude cert specifically, at a specific evening slot) requires a human-set priority the parser cannot produce on its own, and that remains true after this addendum. What Tasks 10-11 fix is real, priority-independent bugs: the pileup/drop bug, two crash-on-user-text paths, two postpone/cancel rules that violated the design spec's own stated behavior, and two un-validated records.
+
+**Deferred to Phase 1b (documented here, not fixed in this plan):**
+- `ConflictDetector.detectUnfittable` has no caller anywhere in this codebase — wiring it up needs `PlanService`-level orchestration (computing `requestedMinutesByGoalId` from `GoalWeighting`'s output) that doesn't exist until Phase 1b.
+- `ConflictType.DEADLINE_AT_RISK` is declared but nothing produces it yet — needs the same Phase 1b orchestration layer plus a "days until deadline" policy decision.
+- `Goal.energy` is stored and validated but never influences scheduling (`DayScheduler` only reads `preferredTime`) — real energy-aware placement is deferred alongside `Replanner.setEnergy`'s existing documented stub.
+- `PostponePolicy` has no concept of "past" (it has no `Clock`) — it correctly refuses `DONE`/`FIXED`/`ROUTINE` blocks (Task 11) but cannot yet refuse a block whose date has already elapsed.
+- Cancelling a block frees its slot as a plain `FREE` block (Task 11); auto-refilling that slot with the next-highest-deficit unit needs `WeekPlan`/`GoalWeighting` context that `Replanner` doesn't currently receive — that's Phase 1b `PlanService` territory.
+
+---
+
+### Task 10: Fix WeekAllocator day-spread/priority-ordering, add crash-safety guards, validate two records
+
+**Files:**
+- Modify: `backend/src/main/java/com/lifeorganizer/engine/WeekAllocator.java`
+- Modify: `backend/src/main/java/com/lifeorganizer/engine/DayScheduler.java`
+- Modify: `backend/src/main/java/com/lifeorganizer/engine/GoalAllocation.java`
+- Modify: `backend/src/main/java/com/lifeorganizer/setup/ConstraintParseResult.java`
+- Modify: `backend/src/test/java/com/lifeorganizer/engine/WeekAllocatorTest.java`
+- Modify: `backend/src/test/java/com/lifeorganizer/engine/DaySchedulerTest.java`
+- Create: `backend/src/test/java/com/lifeorganizer/engine/PipelineIntegrationTest.java`
+
+**Interfaces:**
+- Consumes: everything from Tasks 1-9, unchanged in shape except as noted below.
+- Produces: `WeekAllocator.allocate(...)` now (a) spreads duration-quota chunks across the week using one cursor shared across every goal and every `DurationQuota` constraint in the call (not reset per goal), and (b) sorts each day's `List<Unit>` by descending goal priority (stable, so equal-priority ties keep insertion order) before returning — making the "callers pass units pre-sorted by priority" contract `DayScheduler` already relies on actually true. `DayScheduler.schedule(...)` now skips (with a warning) any non-Sleep `FixedBlock` that is overnight, instead of throwing. `WeekAllocator`'s internal goal-id lookup now warns and drops later duplicates instead of throwing `IllegalStateException`. `GoalAllocation` and `ConstraintParseResult` gain compact constructors matching the rest of the codebase.
+
+- [ ] **Step 1: Write the failing end-to-end pipeline test**
+
+Create `backend/src/test/java/com/lifeorganizer/engine/PipelineIntegrationTest.java`:
+
+```java
+package com.lifeorganizer.engine;
+
+import com.lifeorganizer.domain.*;
+import com.lifeorganizer.setup.ConstraintParseResult;
+import com.lifeorganizer.setup.ConstraintParser;
+import com.lifeorganizer.setup.GoalTreeParser;
+import org.junit.jupiter.api.Test;
+import java.time.DayOfWeek;
+import java.time.LocalDate;
+import java.time.temporal.TemporalAdjusters;
+import java.util.List;
+import java.util.Map;
+import static org.assertj.core.api.Assertions.assertThat;
+
+/**
+ * Exercises the real GoalTreeParser -> ConstraintParser -> WeekAllocator -> DayScheduler
+ * pipeline end to end on the user's exact goals/constraints text, catching composition
+ * bugs that pass at each stage in isolation but break once wired together (see the
+ * Phase 1a whole-branch review: duration-quota work piled entirely onto Monday and
+ * silently dropped the Social evening quota).
+ */
+class PipelineIntegrationTest {
+
+    private static final String USER_GOAL_TREE = """
+        Goals
+        ├── Career
+        │   ├── Claude certification
+        │   ├── Azure AI
+        │   └── System design
+        ├── Projects
+        │   └── RAG showcase
+        ├── Health
+        │   ├── Gym
+        │   └── Padel / football
+        ├── Social
+        │   └── Dating / events
+        ├── Finance
+        │   └── Investing
+        └── Hobbies
+            └── Chess
+        """;
+
+    private static final String USER_CONSTRAINTS = """
+        Work:       08:30-17:00
+        Gym:        4x/week
+        Sleep:      23:30-07:00
+        Learning:   5h/week
+        Side project: 4h/week
+        Social:     2 evenings/week
+        """;
+
+    private final LocalDate monday = LocalDate.of(2026, 9, 14).with(TemporalAdjusters.nextOrSame(DayOfWeek.MONDAY));
+
+    @Test
+    void realPipelineSpreadsDurationQuotasAcrossTheWeekAndPlacesEveryQuota() {
+        GoalTree tree = new GoalTreeParser().parse(USER_GOAL_TREE);
+        ConstraintParseResult parsedConstraints = new ConstraintParser().parse(USER_CONSTRAINTS, tree);
+        assertThat(parsedConstraints.warnings()).isEmpty();
+
+        WeekPlan weekPlan = new WeekAllocator(new GoalWeighting(), EngineSettings.defaults())
+            .allocate(tree.goals(), parsedConstraints.constraints(), monday);
+
+        // No goal's weekly demand should be silently dropped: WeekAllocator only warns
+        // when a single goal can't fit within 7 days, which should not happen here
+        // (Learning 5h across 3 goals and Side project 4h on 1 goal both comfortably fit).
+        assertThat(weekPlan.warnings()).isEmpty();
+
+        // Duration-quota work must be spread, not piled onto one day: every day of the
+        // week should carry at least some scheduled work (the regression this guards
+        // against left Sunday at 0 minutes while Monday absorbed everything).
+        for (LocalDate date : weekPlan.unitsByDate().keySet()) {
+            int dayMinutes = weekPlan.unitsByDate().get(date).stream().mapToInt(Unit::minutes).sum();
+            assertThat(dayMinutes)
+                .withFailMessage("Expected some work scheduled on %s, but the day was empty - "
+                    + "duration quotas are piling onto earlier days instead of spreading", date)
+                .isGreaterThan(0);
+        }
+
+        // Every goal referenced by a quota must appear on at least one day somewhere in
+        // the week (the regression this guards against silently dropped the Social
+        // evening-quota goal once Monday's earlier chunks used up the day's placement
+        // order - but at the WeekAllocator level, Social's unit must exist regardless).
+        List<Unit> allUnits = weekPlan.unitsByDate().values().stream().flatMap(List::stream).toList();
+        assertThat(allUnits).extracting(u -> u.goal().id()).contains("social-dating-events");
+    }
+
+    @Test
+    void realPipelineSchedulesAFullWeekWithoutCrashing() {
+        GoalTree tree = new GoalTreeParser().parse(USER_GOAL_TREE);
+        ConstraintParseResult parsedConstraints = new ConstraintParser().parse(USER_CONSTRAINTS, tree);
+        WeekPlan weekPlan = new WeekAllocator(new GoalWeighting(), EngineSettings.defaults())
+            .allocate(tree.goals(), parsedConstraints.constraints(), monday);
+        DayScheduler scheduler = new DayScheduler(EngineSettings.defaults());
+
+        for (Map.Entry<LocalDate, List<Unit>> entry : weekPlan.unitsByDate().entrySet()) {
+            DayPlan dayPlan = scheduler.schedule(entry.getKey(), entry.getValue(), parsedConstraints.constraints(), List.of());
+            assertThat(dayPlan.blocks()).isNotEmpty();
+        }
+    }
+}
+```
+
+- [ ] **Step 2: Run the test to verify it fails**
+
+Run: `cd backend && ./mvnw -q test -Dtest=PipelineIntegrationTest`
+Expected: FAIL — `realPipelineSpreadsDurationQuotasAcrossTheWeekAndPlacesEveryQuota` fails because Sunday has 0 minutes and/or `social-dating-events` is missing (reproducing the whole-branch review's finding).
+
+- [ ] **Step 3: Fix WeekAllocator's day-spread cursor and add priority sorting**
+
+In `backend/src/main/java/com/lifeorganizer/engine/WeekAllocator.java`, change the `allocate` method's constraint-processing loop to thread a shared, mutable day cursor through every `allocateDuration` call, and sort each day's units by priority afterward:
+
+```java
+    public WeekPlan allocate(List<Goal> goals, List<Constraint> constraints, LocalDate weekStart) {
+        Map<LocalDate, List<Unit>> unitsByDate = new LinkedHashMap<>();
+        for (int i = 0; i < 7; i++) {
+            unitsByDate.put(weekStart.plusDays(i), new ArrayList<>());
+        }
+        List<String> warnings = new ArrayList<>();
+        Map<String, Goal> goalsById = new LinkedHashMap<>();
+        for (Goal g : goals) {
+            if (goalsById.containsKey(g.id())) {
+                warnings.add("Duplicate goal id '" + g.id() + "' - ignoring the duplicate");
+            } else {
+                goalsById.put(g.id(), g);
+            }
+        }
+        Map<String, List<Goal>> goalsByCategoryId = new LinkedHashMap<>();
+        for (Goal g : goals) {
+            goalsByCategoryId.computeIfAbsent(g.category().id(), k -> new ArrayList<>()).add(g);
+        }
+
+        // Shared across every DurationQuota (and every goal within it) so weekly work
+        // spreads across all 7 days instead of each goal/quota restarting at Monday.
+        int[] dayCursor = {0};
+
+        for (Constraint constraint : constraints) {
+            switch (constraint) {
+                case FrequencyQuota freq -> allocateFrequency(freq, goalsById, weekStart, unitsByDate, warnings);
+                case DurationQuota dur -> allocateDuration(dur, goalsByCategoryId, weekStart, unitsByDate, warnings, dayCursor);
+                case EveningQuota eve -> allocateEvening(eve, goalsByCategoryId, weekStart, unitsByDate, warnings);
+                case FixedBlock fixed -> { /* placed directly by DayScheduler, not a Unit */ }
+            }
+        }
+        sortUnitsByGoalPriorityDescending(unitsByDate);
+        return new WeekPlan(unitsByDate, warnings);
+    }
+
+    /** Stable sort: equal-priority units keep the relative order they were inserted in. */
+    private void sortUnitsByGoalPriorityDescending(Map<LocalDate, List<Unit>> unitsByDate) {
+        for (List<Unit> units : unitsByDate.values()) {
+            units.sort(Comparator.comparingInt((Unit u) -> u.goal().priority()).reversed());
+        }
+    }
+```
+
+Update `allocateDuration` to take and advance the shared cursor instead of resetting `dayOffset` per goal:
+
+```java
+    private void allocateDuration(DurationQuota dur, Map<String, List<Goal>> goalsByCategoryId, LocalDate weekStart,
+                                   Map<LocalDate, List<Unit>> unitsByDate, List<String> warnings, int[] dayCursor) {
+        List<Goal> candidates = goalsByCategoryId.get(dur.categoryId());
+        if (candidates == null || candidates.isEmpty()) {
+            warnings.add("Duration quota '" + dur.label() + "' references unknown or empty category " + dur.categoryId());
+            return;
+        }
+        List<GoalAllocation> allocations = goalWeighting.allocate(candidates, dur.minutesPerWeek(), weekStart, settings.gridMinutes());
+
+        for (GoalAllocation allocation : allocations) {
+            int remaining = allocation.minutesPerWeek();
+            int daysTried = 0;
+            while (remaining > 0 && daysTried < 7) {
+                LocalDate date = weekStart.plusDays(dayCursor[0] % 7);
+                int chunk = Math.min(allocation.goal().defaultBlockMinutes(), remaining);
+                unitsByDate.get(date).add(new Unit(allocation.goal().id() + "-chunk-" + date, allocation.goal(), chunk, allocation.goal().preferredTime(), null));
+                remaining -= chunk;
+                dayCursor[0]++;
+                daysTried++;
+            }
+            if (remaining > 0) {
+                warnings.add(allocation.goal().name() + " could not fit " + remaining + " of its "
+                    + allocation.minutesPerWeek() + " weekly minutes (ran out of days)");
+            }
+        }
+    }
+```
+
+(`daysTried` replaces the old per-goal `dayOffset`, still capping each goal at 7 placement attempts; `dayCursor[0]` never resets between goals or between `DurationQuota` calls within one `allocate()` invocation, which is what fixes the pileup. Within a single goal's own `while` loop, `daysTried < 7` iterations of a monotonically-increasing cursor mod 7 always hit 7 distinct residues, so "max one chunk per goal per day" still holds.)
+
+- [ ] **Step 4: Add the duplicate-goal-id warning test**
+
+Add to `backend/src/test/java/com/lifeorganizer/engine/WeekAllocatorTest.java`:
+
+```java
+    @Test
+    void duplicateGoalIdWarnsInsteadOfCrashing() {
+        Goal first = Goal.withDefaults("health-gym", health, "Gym");
+        Goal duplicate = Goal.withDefaults("health-gym", health, "Gym (duplicate)");
+        FrequencyQuota quota = new FrequencyQuota("Gym", 4, 60, "health-gym");
+
+        WeekPlan plan = allocator.allocate(List.of(first, duplicate), List.of(quota), monday);
+
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("Duplicate goal id 'health-gym'"));
+    }
+```
+
+- [ ] **Step 5: Fix DayScheduler's overnight non-Sleep FixedBlock crash**
+
+In `backend/src/main/java/com/lifeorganizer/engine/DayScheduler.java`, in the fixed-block placement loop inside `schedule(...)`, skip (with a warning) any non-Sleep `FixedBlock` that is overnight instead of constructing an invalid `Block`:
+
+```java
+        FixedBlock workBlock = null;
+        for (Constraint c : constraints) {
+            if (c instanceof FixedBlock fb && fb != sleep && fb.days().contains(dow)) {
+                if (fb.isOvernight()) {
+                    warnings.add("Skipping overnight block '" + fb.label() + "' on " + date + " (only Sleep supports overnight ranges)");
+                    continue;
+                }
+                String id = "fixed-" + Slug.of(fb.label()) + "-" + date;
+                placed.add(new Block(id, date, fb.start(), fb.end(), fb.label(), BlockKind.FIXED, null,
+                    BlockStatus.PLANNED, 0, false, null));
+                if (fb.label().equalsIgnoreCase("work")) {
+                    workBlock = fb;
+                }
+            }
+        }
+```
+
+- [ ] **Step 6: Add the overnight-guard test**
+
+Add to `backend/src/test/java/com/lifeorganizer/engine/DaySchedulerTest.java`:
+
+```java
+    @Test
+    void overnightNonSleepFixedBlockIsSkippedWithWarningInsteadOfCrashing() {
+        List<Constraint> constraints = List.of(
+            new FixedBlock("Sleep", LocalTime.of(23, 30), LocalTime.of(7, 0), DAILY),
+            new FixedBlock("Night shift", LocalTime.of(22, 0), LocalTime.of(6, 0), DAILY)
+        );
+
+        DayPlan plan = scheduler.schedule(monday, List.of(), constraints, List.of());
+
+        assertThat(plan.blocksInOrder()).noneMatch(b -> b.title().equals("Night shift"));
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("Night shift"));
+    }
+```
+
+- [ ] **Step 7: Validate GoalAllocation and ConstraintParseResult**
+
+Replace `backend/src/main/java/com/lifeorganizer/engine/GoalAllocation.java` with:
+
+```java
+package com.lifeorganizer.engine;
+
+import com.lifeorganizer.domain.Goal;
+import java.util.Objects;
+
+public record GoalAllocation(Goal goal, int minutesPerWeek) {
+
+    public GoalAllocation {
+        Objects.requireNonNull(goal, "goal");
+        if (minutesPerWeek < 0) {
+            throw new IllegalArgumentException("minutesPerWeek must not be negative");
+        }
+    }
+}
+```
+
+Replace `backend/src/main/java/com/lifeorganizer/setup/ConstraintParseResult.java` with:
+
+```java
+package com.lifeorganizer.setup;
+
+import com.lifeorganizer.domain.Constraint;
+import java.util.List;
+import java.util.Objects;
+
+public record ConstraintParseResult(List<Constraint> constraints, List<String> warnings) {
+
+    public ConstraintParseResult {
+        Objects.requireNonNull(constraints, "constraints");
+        Objects.requireNonNull(warnings, "warnings");
+        constraints = List.copyOf(constraints);
+        warnings = List.copyOf(warnings);
+    }
+}
+```
+
+- [ ] **Step 8: Run the new and existing tests to verify everything passes**
+
+Run: `cd backend && ./mvnw -q test -Dtest=PipelineIntegrationTest,WeekAllocatorTest,DaySchedulerTest,GoalWeightingTest,ConstraintParserTest`
+Expected: PASS, all green, including both `PipelineIntegrationTest` methods.
+
+- [ ] **Step 9: Run the full suite**
+
+Run: `cd backend && ./mvnw -q test`
+Expected: BUILD SUCCESS, all tests across every task green (pre-existing 66 + the new ones from this task).
+
+- [ ] **Step 10: Commit**
+
+```bash
+git add backend
+git commit -m "fix: spread duration-quota work across the week, sort units by priority, guard against overnight/duplicate-id crashes, validate GoalAllocation/ConstraintParseResult" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 11: Fix postpone/cancel to respect block kind, status, and freed slots
+
+**Files:**
+- Modify: `backend/src/main/java/com/lifeorganizer/engine/PostponePolicy.java`
+- Modify: `backend/src/main/java/com/lifeorganizer/engine/Replanner.java`
+- Modify: `backend/src/test/java/com/lifeorganizer/engine/ReplannerTest.java`
+
+**Interfaces:**
+- Consumes: `Block`, `BlockKind`, `BlockStatus`, `DayPlan` (Tasks 2, 6), `PlanEvent` hierarchy (Task 9).
+- Produces: `PostponePolicy.postpone(...)` now refuses (with an explanatory `ReplanResult` message, leaving `weekPlans` unchanged) any block whose `kind()` is `FIXED` or `ROUTINE`, or whose `status()` is `DONE`, matching the design spec's "DONE/fixed/past blocks never move" rule (the "past" half needs a `Clock`, deferred to Phase 1b — see the addendum note above). `Replanner`'s `CancelBlock` handling now converts the cancelled block's time range into a new `FREE` block in that day's plan (in addition to marking the original `CANCELLED`), instead of leaving the cancelled time permanently occupied.
+
+- [ ] **Step 1: Write the failing tests**
+
+Add to `backend/src/test/java/com/lifeorganizer/engine/ReplannerTest.java`:
+
+```java
+    @Test
+    void postponeRefusesAFixedBlock() {
+        Block work = new Block("work", mon, LocalTime.of(8, 30), LocalTime.of(17, 0), "Work",
+            BlockKind.FIXED, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(work), List.of()));
+
+        ReplanResult result = replanner.apply(week, new PostponeBlock("work", "not today"));
+
+        Block unchanged = findBlock(result, mon, "work");
+        assertThat(unchanged.status()).isEqualTo(BlockStatus.PLANNED);
+        assertThat(unchanged.start()).isEqualTo(LocalTime.of(8, 30));
+        assertThat(result.changes()).anyMatch(c -> c.contains("Cannot postpone"));
+    }
+
+    @Test
+    void postponeRefusesADoneBlock() {
+        Block gym = new Block("gym", mon, LocalTime.of(7, 0), LocalTime.of(8, 0), "Gym",
+            BlockKind.GOAL, "health-gym", BlockStatus.DONE, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(gym), List.of()));
+
+        ReplanResult result = replanner.apply(week, new PostponeBlock("gym", "already did it, but retry?"));
+
+        Block unchanged = findBlock(result, mon, "gym");
+        assertThat(unchanged.status()).isEqualTo(BlockStatus.DONE);
+        assertThat(result.changes()).anyMatch(c -> c.contains("Cannot postpone"));
+    }
+
+    @Test
+    void cancelFreesTheSlot() {
+        Block padel = new Block("padel", mon, LocalTime.of(19, 0), LocalTime.of(20, 30), "Padel",
+            BlockKind.ADHOC, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(padel), List.of()));
+
+        ReplanResult result = replanner.apply(week, new CancelBlock("padel"));
+
+        List<Block> blocks = result.updatedPlans().get(mon).blocks();
+        assertThat(blocks).anyMatch(b -> b.id().equals("padel") && b.status() == BlockStatus.CANCELLED);
+        assertThat(blocks).anyMatch(b -> b.kind() == BlockKind.FREE
+            && b.start().equals(LocalTime.of(19, 0)) && b.end().equals(LocalTime.of(20, 30)));
+    }
+```
+
+- [ ] **Step 2: Run the tests to verify they fail**
+
+Run: `cd backend && ./mvnw -q test -Dtest=ReplannerTest`
+Expected: FAIL — `postponeRefusesAFixedBlock` and `postponeRefusesADoneBlock` fail because `work`/`gym` get moved; `cancelFreesTheSlot` fails because no `FREE` block appears (`cancelMarksBlockCancelled` should still pass unchanged).
+
+- [ ] **Step 3: Add the kind/status guard to PostponePolicy**
+
+In `backend/src/main/java/com/lifeorganizer/engine/PostponePolicy.java`, in the `postpone` method, right after `original` is found (before computing `candidateDates`), add:
+
+```java
+        if (original.kind() == BlockKind.FIXED || original.kind() == BlockKind.ROUTINE) {
+            return new ReplanResult(weekPlans, List.of("Cannot postpone a " + original.kind() + " block (" + original.title() + ")"));
+        }
+        if (original.status() == BlockStatus.DONE) {
+            return new ReplanResult(weekPlans, List.of("Cannot postpone a completed block (" + original.title() + ")"));
+        }
+```
+
+- [ ] **Step 4: Make CancelBlock free its slot in Replanner**
+
+In `backend/src/main/java/com/lifeorganizer/engine/Replanner.java`, replace the `CancelBlock` case in `apply`'s switch — instead of routing to the generic `setStatus`, add a dedicated `cancel` method:
+
+```java
+    public ReplanResult apply(Map<LocalDate, DayPlan> weekPlans, PlanEvent event) {
+        return switch (event) {
+            case CancelBlock c -> cancel(weekPlans, c);
+            case MarkDone d -> setStatus(weekPlans, d.blockId(), BlockStatus.DONE, "Marked done");
+            case PostponeBlock p -> postponePolicy.postpone(weekPlans, p);
+            case SetEnergy e -> setEnergy(weekPlans, e);
+            case AddAdhoc a -> addAdhoc(weekPlans, a);
+        };
+    }
+
+    private ReplanResult cancel(Map<LocalDate, DayPlan> weekPlans, CancelBlock event) {
+        for (Map.Entry<LocalDate, DayPlan> entry : weekPlans.entrySet()) {
+            DayPlan plan = entry.getValue();
+            Optional<Block> match = plan.blocks().stream().filter(b -> b.id().equals(event.blockId())).findFirst();
+            if (match.isPresent()) {
+                Block original = match.get();
+                Block cancelled = new Block(original.id(), original.date(), original.start(), original.end(), original.title(),
+                    original.kind(), original.goalId(), BlockStatus.CANCELLED, original.postponeCount(), original.flagged(), original.reason());
+                Block freedSlot = new Block(original.id() + "-freed", original.date(), original.start(), original.end(), "Free",
+                    BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
+                List<Block> blocks = new ArrayList<>(plan.blocks());
+                blocks.replaceAll(b -> b.id().equals(event.blockId()) ? cancelled : b);
+                blocks.add(freedSlot);
+                Map<LocalDate, DayPlan> updated = new LinkedHashMap<>(weekPlans);
+                updated.put(entry.getKey(), new DayPlan(plan.date(), blocks, plan.warnings()));
+                return new ReplanResult(updated, List.of("Cancelled " + original.title() + " - slot is now free"));
+            }
+        }
+        return new ReplanResult(weekPlans, List.of("Block " + event.blockId() + " not found"));
+    }
+```
+
+(`setStatus` stays as-is for `MarkDone`; `CancelBlock` no longer uses it.)
+
+- [ ] **Step 5: Run the tests to verify they pass**
+
+Run: `cd backend && ./mvnw -q test -Dtest=ReplannerTest`
+Expected: PASS, 9 tests green (the original 6 plus these 3), including `cancelMarksBlockCancelled` still passing unchanged.
+
+- [ ] **Step 6: Run the full suite**
+
+Run: `cd backend && ./mvnw -q test`
+Expected: BUILD SUCCESS, all tests across the whole plan green.
+
+- [ ] **Step 7: Commit**
+
+```bash
+git add backend
+git commit -m "fix: postpone refuses FIXED/ROUTINE/DONE blocks; cancel frees its slot" -m "Co-Authored-By: Claude Sonnet 5 <noreply@anthropic.com>"
+```
