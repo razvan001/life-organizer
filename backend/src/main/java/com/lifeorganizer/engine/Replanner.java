@@ -19,12 +19,33 @@ public final class Replanner {
 
     public ReplanResult apply(Map<LocalDate, DayPlan> weekPlans, PlanEvent event) {
         return switch (event) {
-            case CancelBlock c -> setStatus(weekPlans, c.blockId(), BlockStatus.CANCELLED, "Cancelled");
+            case CancelBlock c -> cancel(weekPlans, c);
             case MarkDone d -> setStatus(weekPlans, d.blockId(), BlockStatus.DONE, "Marked done");
             case PostponeBlock p -> postponePolicy.postpone(weekPlans, p);
             case SetEnergy e -> setEnergy(weekPlans, e);
             case AddAdhoc a -> addAdhoc(weekPlans, a);
         };
+    }
+
+    private ReplanResult cancel(Map<LocalDate, DayPlan> weekPlans, CancelBlock event) {
+        for (Map.Entry<LocalDate, DayPlan> entry : weekPlans.entrySet()) {
+            DayPlan plan = entry.getValue();
+            Optional<Block> match = plan.blocks().stream().filter(b -> b.id().equals(event.blockId())).findFirst();
+            if (match.isPresent()) {
+                Block original = match.get();
+                Block cancelled = new Block(original.id(), original.date(), original.start(), original.end(), original.title(),
+                    original.kind(), original.goalId(), BlockStatus.CANCELLED, original.postponeCount(), original.flagged(), original.reason());
+                Block freedSlot = new Block(original.id() + "-freed", original.date(), original.start(), original.end(), "Free",
+                    BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
+                List<Block> blocks = new ArrayList<>(plan.blocks());
+                blocks.replaceAll(b -> b.id().equals(event.blockId()) ? cancelled : b);
+                blocks.add(freedSlot);
+                Map<LocalDate, DayPlan> updated = new LinkedHashMap<>(weekPlans);
+                updated.put(entry.getKey(), new DayPlan(plan.date(), blocks, plan.warnings()));
+                return new ReplanResult(updated, List.of("Cancelled " + original.title() + " - slot is now free"));
+            }
+        }
+        return new ReplanResult(weekPlans, List.of("Block " + event.blockId() + " not found"));
     }
 
     private ReplanResult setStatus(Map<LocalDate, DayPlan> weekPlans, String blockId, BlockStatus status, String verb) {

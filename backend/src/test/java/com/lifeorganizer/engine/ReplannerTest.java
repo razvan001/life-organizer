@@ -105,6 +105,47 @@ class ReplannerTest {
         assertThat(result.updatedPlans().get(mon).blocks()).anyMatch(b -> b.title().equals("Padel") && b.kind() == BlockKind.ADHOC);
     }
 
+    @Test
+    void postponeRefusesAFixedBlock() {
+        Block work = new Block("work", mon, LocalTime.of(8, 30), LocalTime.of(17, 0), "Work",
+            BlockKind.FIXED, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(work), List.of()));
+
+        ReplanResult result = replanner.apply(week, new PostponeBlock("work", "not today"));
+
+        Block unchanged = findBlock(result, mon, "work");
+        assertThat(unchanged.status()).isEqualTo(BlockStatus.PLANNED);
+        assertThat(unchanged.start()).isEqualTo(LocalTime.of(8, 30));
+        assertThat(result.changes()).anyMatch(c -> c.contains("Cannot postpone"));
+    }
+
+    @Test
+    void postponeRefusesADoneBlock() {
+        Block gym = new Block("gym", mon, LocalTime.of(7, 0), LocalTime.of(8, 0), "Gym",
+            BlockKind.GOAL, "health-gym", BlockStatus.DONE, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(gym), List.of()));
+
+        ReplanResult result = replanner.apply(week, new PostponeBlock("gym", "already did it, but retry?"));
+
+        Block unchanged = findBlock(result, mon, "gym");
+        assertThat(unchanged.status()).isEqualTo(BlockStatus.DONE);
+        assertThat(result.changes()).anyMatch(c -> c.contains("Cannot postpone"));
+    }
+
+    @Test
+    void cancelFreesTheSlot() {
+        Block padel = new Block("padel", mon, LocalTime.of(19, 0), LocalTime.of(20, 30), "Padel",
+            BlockKind.ADHOC, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(padel), List.of()));
+
+        ReplanResult result = replanner.apply(week, new CancelBlock("padel"));
+
+        List<Block> blocks = result.updatedPlans().get(mon).blocks();
+        assertThat(blocks).anyMatch(b -> b.id().equals("padel") && b.status() == BlockStatus.CANCELLED);
+        assertThat(blocks).anyMatch(b -> b.kind() == BlockKind.FREE
+            && b.start().equals(LocalTime.of(19, 0)) && b.end().equals(LocalTime.of(20, 30)));
+    }
+
     private Map<LocalDate, DayPlan> weekOf(LocalDate date, DayPlan plan) {
         Map<LocalDate, DayPlan> map = new LinkedHashMap<>();
         map.put(date, plan);

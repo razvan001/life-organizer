@@ -23,6 +23,13 @@ public final class PostponePolicy {
         DayPlan originPlan = weekPlans.get(originDate);
         Block original = originPlan.blocks().stream().filter(b -> b.id().equals(event.blockId())).findFirst().orElseThrow();
 
+        if (original.kind() == BlockKind.FIXED || original.kind() == BlockKind.ROUTINE) {
+            return new ReplanResult(weekPlans, List.of("Cannot postpone a " + original.kind() + " block (" + original.title() + ")"));
+        }
+        if (original.status() == BlockStatus.DONE) {
+            return new ReplanResult(weekPlans, List.of("Cannot postpone a completed block (" + original.title() + ")"));
+        }
+
         List<LocalDate> candidateDates = new ArrayList<>();
         candidateDates.add(originDate);
         weekPlans.keySet().stream().filter(d -> d.isAfter(originDate)).sorted().forEach(candidateDates::add);
