@@ -1,3 +1,10 @@
 package com.lifeorganizer.engine;
 
-public record CancelBlock(String blockId) implements PlanEvent {}
+import java.util.Objects;
+
+public record CancelBlock(String blockId) implements PlanEvent {
+
+    public CancelBlock {
+        Objects.requireNonNull(blockId, "blockId");
+    }
+}
