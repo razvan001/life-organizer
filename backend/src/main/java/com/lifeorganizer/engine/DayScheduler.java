@@ -88,7 +88,15 @@ public final class DayScheduler {
         return null;
     }
 
-    private record Interval(LocalTime start, LocalTime end) {}
+    private record Interval(LocalTime start, LocalTime end) {
+        public Interval {
+            Objects.requireNonNull(start, "start");
+            Objects.requireNonNull(end, "end");
+            if (!end.isAfter(start)) {
+                throw new IllegalArgumentException("end must be after start");
+            }
+        }
+    }
 
     private List<Interval> freeGaps(LocalTime dayStart, LocalTime dayEnd, List<Block> placed) {
         List<Block> sorted = placed.stream().sorted(Comparator.comparing(Block::start)).toList();
