@@ -2250,7 +2250,14 @@ Create `backend/src/main/java/com/lifeorganizer/engine/CancelBlock.java`:
 ```java
 package com.lifeorganizer.engine;
 
-public record CancelBlock(String blockId) implements PlanEvent {}
+import java.util.Objects;
+
+public record CancelBlock(String blockId) implements PlanEvent {
+
+    public CancelBlock {
+        Objects.requireNonNull(blockId, "blockId");
+    }
+}
 ```
 
 Create `backend/src/main/java/com/lifeorganizer/engine/PostponeBlock.java`:
@@ -2258,7 +2265,15 @@ Create `backend/src/main/java/com/lifeorganizer/engine/PostponeBlock.java`:
 ```java
 package com.lifeorganizer.engine;
 
-public record PostponeBlock(String blockId, String reason) implements PlanEvent {}
+import java.util.Objects;
+
+public record PostponeBlock(String blockId, String reason) implements PlanEvent {
+
+    public PostponeBlock {
+        Objects.requireNonNull(blockId, "blockId");
+        // reason is optional/nullable - no check.
+    }
+}
 ```
 
 Create `backend/src/main/java/com/lifeorganizer/engine/MarkDone.java`:
@@ -2266,7 +2281,14 @@ Create `backend/src/main/java/com/lifeorganizer/engine/MarkDone.java`:
 ```java
 package com.lifeorganizer.engine;
 
-public record MarkDone(String blockId) implements PlanEvent {}
+import java.util.Objects;
+
+public record MarkDone(String blockId) implements PlanEvent {
+
+    public MarkDone {
+        Objects.requireNonNull(blockId, "blockId");
+    }
+}
 ```
 
 Create `backend/src/main/java/com/lifeorganizer/engine/SetEnergy.java`:
@@ -2275,8 +2297,15 @@ Create `backend/src/main/java/com/lifeorganizer/engine/SetEnergy.java`:
 package com.lifeorganizer.engine;
 
 import com.lifeorganizer.domain.Energy;
+import java.util.Objects;
 
-public record SetEnergy(String blockId, Energy level) implements PlanEvent {}
+public record SetEnergy(String blockId, Energy level) implements PlanEvent {
+
+    public SetEnergy {
+        Objects.requireNonNull(blockId, "blockId");
+        Objects.requireNonNull(level, "level");
+    }
+}
 ```
 
 Create `backend/src/main/java/com/lifeorganizer/engine/AddAdhoc.java`:
@@ -2286,8 +2315,20 @@ package com.lifeorganizer.engine;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
+import java.util.Objects;
 
-public record AddAdhoc(LocalDate date, String title, LocalTime start, LocalTime end) implements PlanEvent {}
+public record AddAdhoc(LocalDate date, String title, LocalTime start, LocalTime end) implements PlanEvent {
+
+    public AddAdhoc {
+        Objects.requireNonNull(date, "date");
+        Objects.requireNonNull(title, "title");
+        Objects.requireNonNull(start, "start");
+        Objects.requireNonNull(end, "end");
+        if (!end.isAfter(start)) {
+            throw new IllegalArgumentException("end must be after start");
+        }
+    }
+}
 ```
 
 Create `backend/src/main/java/com/lifeorganizer/engine/ReplanResult.java`:
@@ -2297,11 +2338,26 @@ package com.lifeorganizer.engine;
 
 import com.lifeorganizer.domain.DayPlan;
 import java.time.LocalDate;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-public record ReplanResult(Map<LocalDate, DayPlan> updatedPlans, List<String> changes) {}
+public record ReplanResult(Map<LocalDate, DayPlan> updatedPlans, List<String> changes) {
+
+    public ReplanResult {
+        Objects.requireNonNull(updatedPlans, "updatedPlans");
+        Objects.requireNonNull(changes, "changes");
+        // Order-preserving, per the WeekPlan lesson: Map.copyOf does not preserve
+        // LinkedHashMap insertion order.
+        updatedPlans = Collections.unmodifiableMap(new LinkedHashMap<>(updatedPlans));
+        changes = List.copyOf(changes);
+    }
+}
 ```
+
+*(Amended after Task 9's review: the original draft omitted validation on all six new records - fixed per human decision, matching the codebase's established pattern. The implementer correctly flagged the gap rather than deciding unilaterally.)*
 
 Create `backend/src/main/java/com/lifeorganizer/engine/PostponePolicy.java`:
 
