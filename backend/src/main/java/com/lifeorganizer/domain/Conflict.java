@@ -9,5 +9,6 @@ public record Conflict(ConflictType type, String message, List<String> relatedBl
         Objects.requireNonNull(type, "type");
         Objects.requireNonNull(message, "message");
         Objects.requireNonNull(relatedBlockIds, "relatedBlockIds");
+        relatedBlockIds = List.copyOf(relatedBlockIds);
     }
 }
