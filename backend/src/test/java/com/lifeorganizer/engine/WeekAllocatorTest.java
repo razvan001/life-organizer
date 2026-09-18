@@ -91,4 +91,15 @@ class WeekAllocatorTest {
             .mapToInt(Unit::minutes).sum();
         assertThat(certMinutes).isEqualTo(420); // 7 blocks * 60 minutes
     }
+
+    @Test
+    void duplicateGoalIdWarnsInsteadOfCrashing() {
+        Goal first = Goal.withDefaults("health-gym", health, "Gym");
+        Goal duplicate = Goal.withDefaults("health-gym", health, "Gym (duplicate)");
+        FrequencyQuota quota = new FrequencyQuota("Gym", 4, 60, "health-gym");
+
+        WeekPlan plan = allocator.allocate(List.of(first, duplicate), List.of(quota), monday);
+
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("Duplicate goal id 'health-gym'"));
+    }
 }

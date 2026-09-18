@@ -90,4 +90,17 @@ class DaySchedulerTest {
         assertThat(plan.blocksInOrder()).contains(doneGym);
         assertThat(plan.blocksInOrder()).noneMatch(b -> !b.id().equals("done-gym") && b.overlaps(doneGym));
     }
+
+    @Test
+    void overnightNonSleepFixedBlockIsSkippedWithWarningInsteadOfCrashing() {
+        List<Constraint> constraints = List.of(
+            new FixedBlock("Sleep", LocalTime.of(23, 30), LocalTime.of(7, 0), DAILY),
+            new FixedBlock("Night shift", LocalTime.of(22, 0), LocalTime.of(6, 0), DAILY)
+        );
+
+        DayPlan plan = scheduler.schedule(monday, List.of(), constraints, List.of());
+
+        assertThat(plan.blocksInOrder()).noneMatch(b -> b.title().equals("Night shift"));
+        assertThat(plan.warnings()).anyMatch(w -> w.contains("Night shift"));
+    }
 }

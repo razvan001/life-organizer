@@ -35,6 +35,10 @@ public final class DayScheduler {
         FixedBlock workBlock = null;
         for (Constraint c : constraints) {
             if (c instanceof FixedBlock fb && fb != sleep && fb.days().contains(dow)) {
+                if (fb.isOvernight()) {
+                    warnings.add("Skipping overnight block '" + fb.label() + "' on " + date + " (only Sleep supports overnight ranges)");
+                    continue;
+                }
                 String id = "fixed-" + Slug.of(fb.label()) + "-" + date;
                 placed.add(new Block(id, date, fb.start(), fb.end(), fb.label(), BlockKind.FIXED, null,
                     BlockStatus.PLANNED, 0, false, null));
