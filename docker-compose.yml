@@ -1,0 +1,15 @@
+services:
+  db:
+    image: pgvector/pgvector:pg17
+    container_name: life-organizer-db
+    environment:
+      POSTGRES_DB: lifeorganizer
+      POSTGRES_USER: lifeorganizer
+      POSTGRES_PASSWORD: lifeorganizer
+    ports:
+      - "5432:5432"
+    volumes:
+      - life-organizer-pgdata:/var/lib/postgresql/data
+
+volumes:
+  life-organizer-pgdata:
