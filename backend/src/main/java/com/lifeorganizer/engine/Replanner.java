@@ -3,6 +3,7 @@ package com.lifeorganizer.engine;
 import com.lifeorganizer.domain.*;
 
 import java.time.LocalDate;
+import java.time.LocalTime;
 import java.util.*;
 
 /**
@@ -79,10 +80,31 @@ public final class Replanner {
         }
         Block adhoc = new Block("adhoc-" + event.date() + "-" + event.start(), event.date(), event.start(), event.end(),
             event.title(), BlockKind.ADHOC, null, BlockStatus.PLANNED, 0, false, null);
-        List<Block> blocks = new ArrayList<>(plan.blocks());
+
+        // The ad-hoc block takes over any free time it overlaps: each overlapped FREE block is
+        // replaced by whatever free time is left before and/or after the ad-hoc range.
+        List<Block> blocks = new ArrayList<>();
+        for (Block existing : plan.blocks()) {
+            if (existing.kind() == BlockKind.FREE && existing.status() == BlockStatus.PLANNED && existing.overlaps(adhoc)) {
+                if (existing.start().isBefore(adhoc.start())) {
+                    blocks.add(freeFragment(existing, existing.id() + "-before", existing.start(), adhoc.start()));
+                }
+                if (existing.end().isAfter(adhoc.end())) {
+                    blocks.add(freeFragment(existing, existing.id() + "-after", adhoc.end(), existing.end()));
+                }
+            } else {
+                blocks.add(existing);
+            }
+        }
         blocks.add(adhoc);
+
         Map<LocalDate, DayPlan> updated = new LinkedHashMap<>(weekPlans);
         updated.put(event.date(), new DayPlan(plan.date(), blocks, plan.warnings()));
         return new ReplanResult(updated, List.of("Added " + event.title() + " at " + event.start()));
+    }
+
+    private static Block freeFragment(Block source, String id, LocalTime start, LocalTime end) {
+        return new Block(id, source.date(), start, end, "Free", BlockKind.FREE, null,
+            BlockStatus.PLANNED, 0, false, null);
     }
 }

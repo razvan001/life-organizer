@@ -106,6 +106,50 @@ class ReplannerTest {
     }
 
     @Test
+    void addAdhocConsumesTheFreeTimeItOverlaps() {
+        Block free = new Block("free-1", mon, LocalTime.of(20, 0), LocalTime.of(22, 30), "Free",
+            BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(free), List.of()));
+
+        ReplanResult result = replanner.apply(week, new AddAdhoc(mon, "Padel", LocalTime.of(21, 0), LocalTime.of(22, 0)));
+
+        List<Block> blocks = result.updatedPlans().get(mon).blocks();
+        assertThat(blocks).hasSize(3);
+        assertThat(blocks).noneMatch(b -> b.id().equals("free-1"));
+        assertThat(blocks).anyMatch(b -> b.id().equals("free-1-before") && b.kind() == BlockKind.FREE
+            && b.start().equals(LocalTime.of(20, 0)) && b.end().equals(LocalTime.of(21, 0)));
+        assertThat(blocks).anyMatch(b -> b.id().equals("free-1-after") && b.kind() == BlockKind.FREE
+            && b.start().equals(LocalTime.of(22, 0)) && b.end().equals(LocalTime.of(22, 30)));
+        assertThat(blocks).anyMatch(b -> b.kind() == BlockKind.ADHOC && b.title().equals("Padel"));
+    }
+
+    @Test
+    void addAdhocThatExactlyCoversAFreeBlockRemovesIt() {
+        Block free = new Block("free-1", mon, LocalTime.of(21, 0), LocalTime.of(22, 30), "Free",
+            BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(free), List.of()));
+
+        ReplanResult result = replanner.apply(week, new AddAdhoc(mon, "Padel", LocalTime.of(21, 0), LocalTime.of(22, 30)));
+
+        List<Block> blocks = result.updatedPlans().get(mon).blocks();
+        assertThat(blocks).hasSize(1);
+        assertThat(blocks.get(0).kind()).isEqualTo(BlockKind.ADHOC);
+    }
+
+    @Test
+    void addAdhocLeavesNonFreeBlocksUntouched() {
+        Block work = new Block("work", mon, LocalTime.of(8, 30), LocalTime.of(17, 0), "Work",
+            BlockKind.FIXED, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(work), List.of()));
+
+        ReplanResult result = replanner.apply(week, new AddAdhoc(mon, "Call", LocalTime.of(9, 0), LocalTime.of(10, 0)));
+
+        List<Block> blocks = result.updatedPlans().get(mon).blocks();
+        assertThat(blocks).hasSize(2);
+        assertThat(blocks).contains(work);
+    }
+
+    @Test
     void postponeRefusesAFixedBlock() {
         Block work = new Block("work", mon, LocalTime.of(8, 30), LocalTime.of(17, 0), "Work",
             BlockKind.FIXED, null, BlockStatus.PLANNED, 0, false, null);
