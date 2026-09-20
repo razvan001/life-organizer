@@ -1,0 +1,211 @@
+:root {
+  font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  color: #1f2933;
+  background: #f5f7fa;
+  line-height: 1.4;
+}
+
+body {
+  margin: 0;
+}
+
+.app {
+  max-width: 44rem;
+  margin: 0 auto;
+  padding: 1rem;
+}
+
+header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  border-bottom: 1px solid #d9e2ec;
+  margin-bottom: 1rem;
+}
+
+header h1 {
+  font-size: 1.25rem;
+  margin: 0 0 0.5rem;
+}
+
+nav a {
+  margin-left: 1rem;
+  color: #486581;
+  text-decoration: none;
+}
+
+nav a.active {
+  color: #102a43;
+  font-weight: 600;
+  border-bottom: 2px solid #102a43;
+}
+
+button {
+  font: inherit;
+  padding: 0.3rem 0.8rem;
+  margin-right: 0.4rem;
+  border: 1px solid #9fb3c8;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.muted {
+  color: #627d98;
+  font-size: 0.9rem;
+}
+
+.field {
+  margin-bottom: 1rem;
+}
+
+.field label {
+  display: block;
+  font-weight: 600;
+}
+
+textarea {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 0.3rem;
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.9rem;
+}
+
+.warnings {
+  background: #fff8e1;
+  border: 1px solid #f0d78c;
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+}
+
+[role='alert'] {
+  color: #a61b1b;
+}
+
+.goal-list {
+  list-style: none;
+  padding: 0;
+}
+
+.goal-list li {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.goal-name {
+  flex: 1;
+}
+
+.timeline {
+  list-style: none;
+  padding: 0;
+}
+
+.block {
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-left: 4px solid #9fb3c8;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 0.5rem;
+}
+
+.block-goal {
+  border-left-color: #2680c2;
+}
+
+.block-adhoc {
+  border-left-color: #7b4bd3;
+}
+
+.block-free {
+  background: transparent;
+  border-style: dashed;
+  color: #627d98;
+}
+
+.block.status-done,
+.block.status-cancelled,
+.block.status-postponed {
+  opacity: 0.6;
+}
+
+.block.status-done .block-title,
+.block.status-cancelled .block-title {
+  text-decoration: line-through;
+}
+
+.block-line {
+  display: flex;
+  gap: 0.75rem;
+  align-items: baseline;
+}
+
+.block-time {
+  font-variant-numeric: tabular-nums;
+  color: #486581;
+}
+
+.block-title {
+  flex: 1;
+  font-weight: 600;
+}
+
+.badge {
+  font-size: 0.75rem;
+  background: #e4e7eb;
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+}
+
+.block-reason {
+  margin: 0.25rem 0 0;
+  font-style: italic;
+  color: #627d98;
+}
+
+.block-flag {
+  margin: 0.25rem 0 0;
+  color: #b44d12;
+  font-weight: 600;
+}
+
+.block-actions {
+  margin-top: 0.5rem;
+}
+
+.toast {
+  position: fixed;
+  bottom: 1rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+  max-width: 34rem;
+  background: #102a43;
+  color: #fff;
+  border-radius: 6px;
+  padding: 0.5rem 1rem;
+}
+
+.toast ul {
+  margin: 0;
+  padding-left: 1.1rem;
+}
+
+.toast button {
+  margin: 0;
+  color: #fff;
+  background: transparent;
+  border-color: #486581;
+}
