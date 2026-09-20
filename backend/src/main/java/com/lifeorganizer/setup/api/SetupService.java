@@ -32,6 +32,11 @@ import java.util.Objects;
 @Service
 public class SetupService {
 
+    static final String NO_GOALS_WARNING =
+        "No goals found in the goals text. Write a title line, then indented categories and goals, "
+            + "for example \"- Hobbies\" followed by \"  - Padel\" (two spaces before the second dash), "
+            + "or use the tree layout of the example.";
+
     private final SetupStore setupStore;
 
     public SetupService(SetupStore setupStore) {
@@ -50,11 +55,17 @@ public class SetupService {
         }
         ConstraintParseResult parsed = new ConstraintParser().parse(constraintsText, tree);
 
+        List<String> warnings = new ArrayList<>();
+        if (!goalsText.isBlank() && tree.goals().isEmpty()) {
+            warnings.add(NO_GOALS_WARNING);
+        }
+        warnings.addAll(parsed.warnings());
+
         return new SetupParseResponse(
             tree.categories().stream().map(SetupDtoMapper::toDto).toList(),
             tree.goals().stream().map(SetupDtoMapper::toDto).toList(),
             parsed.constraints().stream().map(SetupDtoMapper::toDto).toList(),
-            parsed.warnings());
+            List.copyOf(warnings));
     }
 
     @Transactional(readOnly = true)

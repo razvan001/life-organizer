@@ -96,6 +96,38 @@ class SetupServiceTest {
         assertThat(response.warnings()).isEmpty();
     }
 
+    private static final String NO_GOALS_WARNING =
+        "No goals found in the goals text. Write a title line, then indented categories and goals, "
+            + "for example \"- Hobbies\" followed by \"  - Padel\" (two spaces before the second dash), "
+            + "or use the tree layout of the example.";
+
+    @Test
+    void parseWarnsWhenTheGoalsTextHasNoGoals() {
+        SetupParseResponse response = service.parse(new SetupParseRequest("Hobbies - padel", ""));
+
+        assertThat(response.categories()).isEmpty();
+        assertThat(response.goals()).isEmpty();
+        assertThat(response.warnings()).containsExactly(NO_GOALS_WARNING);
+    }
+
+    @Test
+    void parseAcceptsATreeWrittenInTheDashStyleWithoutWarnings() {
+        SetupParseResponse response = service.parse(new SetupParseRequest("- Hobbies\n  - Padel\n", ""));
+
+        assertThat(response.categories()).extracting(CategoryDto::name).containsExactly("Hobbies");
+        assertThat(response.goals()).extracting(GoalDto::name).containsExactly("Padel");
+        assertThat(response.warnings()).isEmpty();
+    }
+
+    @Test
+    void theNoGoalsWarningComesBeforeTheConstraintWarnings() {
+        SetupParseResponse response = service.parse(new SetupParseRequest("Hobbies - padel", "Meditation: 3x/week\n"));
+
+        assertThat(response.warnings()).containsExactly(
+            NO_GOALS_WARNING,
+            "No goal found for frequency constraint: Meditation");
+    }
+
     @Test
     void savingThenLoadingRoundTripsTheParsedSetup() {
         SetupPayload payload = payloadOf(parseExample());
