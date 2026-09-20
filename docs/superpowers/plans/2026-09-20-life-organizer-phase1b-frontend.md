@@ -6,7 +6,7 @@
 
 **Architecture:** Plain React + TypeScript built by Vite. `api/client.ts` wraps `fetch` and turns RFC 7807 error bodies into a typed `ApiError`; a small `useApi` hook gives pages `{data, loading, error}`. Pages hold their own state with `useState`. React Router has two routes. Vite proxies `/api` to Spring Boot on port 8080, so the browser only ever talks to one origin and the backend needs no CORS setup. Tests use Vitest + React Testing Library with `fetch` replaced by a small route-based mock.
 
-**Tech Stack:** Node 20.19+ (tested with Node 24, npm 11), React 19.2, react-router-dom 7, Vite 8, Vitest 5 (jsdom), @testing-library/react 16 + user-event 14 + jest-dom 7, TypeScript ~6.0. All versions are the caret ranges in Task 1's `package.json`; they were installed and exercised together in a scratch project (57 tests + `npm run build` green) before this plan was written.
+**Tech Stack:** Node 22.12+ (Vitest 5 requires it; Vite alone needs 20.19+) (tested with Node 24, npm 11), React 19.2, react-router-dom 7, Vite 8, Vitest 5 (jsdom), @testing-library/react 16 + user-event 14 + jest-dom 7, TypeScript ~6.0. All versions are the caret ranges in Task 1's `package.json`; they were installed and exercised together in a scratch project (57 tests + `npm run build` green) before this plan was written.
 
 ## Global Constraints
 
@@ -2348,7 +2348,7 @@ and the React UI are done. Later phases add the AI layer (LLM extraction, planni
 2. In the `## What you need` list add a line after the Docker line:
 
 ```
-- Node.js 20.19 or newer (tested with 24) — for the React UI
+- Node.js 22.12 or newer (tested with 24) — for the React UI
 ```
 
 3. Insert this section immediately before the `## Try the API` heading:

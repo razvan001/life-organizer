@@ -10,7 +10,7 @@ and the React UI are done. Later phases add the AI layer (LLM extraction, planni
 
 - Java 21
 - Docker Desktop (running) — for the local database and for the automated tests
-- Node.js 20.19 or newer (tested with 24) — for the React UI
+- Node.js 22.12 or newer (tested with 24) — for the React UI
 
 ## Run it
 
