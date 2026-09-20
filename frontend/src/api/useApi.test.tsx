@@ -37,6 +37,36 @@ describe('useApi', () => {
     expect(result.current.data).toBeNull()
   })
 
+  it('keeps the old data and exposes the error when a refetch fails', async () => {
+    const failure = new Error('offline')
+    const load = vi.fn().mockResolvedValueOnce('first').mockRejectedValueOnce(failure)
+    const { result } = renderHook(() => useApi(load))
+    await waitFor(() => expect(result.current.data).toBe('first'))
+
+    act(() => result.current.refetch())
+
+    await waitFor(() => expect(result.current.error).toBe(failure))
+    expect(result.current.data).toBe('first')
+    expect(result.current.loading).toBe(false)
+  })
+
+  it('a successful refetch after a failed one clears the error and shows the new data', async () => {
+    const load = vi
+      .fn()
+      .mockResolvedValueOnce('first')
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce('third')
+    const { result } = renderHook(() => useApi(load))
+    await waitFor(() => expect(result.current.data).toBe('first'))
+    act(() => result.current.refetch())
+    await waitFor(() => expect(result.current.error).not.toBeNull())
+
+    act(() => result.current.refetch())
+
+    await waitFor(() => expect(result.current.data).toBe('third'))
+    expect(result.current.error).toBeNull()
+  })
+
   it('setData replaces the data without another request', async () => {
     const load = vi.fn().mockResolvedValue('old')
     const { result } = renderHook(() => useApi(load))

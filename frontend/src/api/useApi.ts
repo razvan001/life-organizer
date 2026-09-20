@@ -29,7 +29,8 @@ export function useApi<T>(load: () => Promise<T>) {
         if (!cancelled && mine === latest.current) setState({ data, error: null, loading: false })
       },
       (error: unknown) => {
-        if (!cancelled && mine === latest.current) setState({ data: null, error, loading: false })
+        // keep the previous data: a failed background refresh must not wipe out a plan that is on screen
+        if (!cancelled && mine === latest.current) setState((current) => ({ ...current, error, loading: false }))
       },
     )
     return () => {

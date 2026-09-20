@@ -50,6 +50,7 @@ export function TodayPage() {
       setData({ date: result.date, blocks: result.blocks, warnings: result.warnings })
       setChanges(result.changes)
     } catch (failure) {
+      setChanges([]) // an older success toast must not sit next to the new error
       setActionError(errorMessage(failure))
     } finally {
       setBusy(false)
@@ -62,7 +63,7 @@ export function TodayPage() {
   if (loading && !data) {
     return <p>Loading today's plan…</p>
   }
-  if (error || !data) {
+  if (!data) {
     return <p role="alert">{errorMessage(error)}</p>
   }
 
@@ -70,6 +71,9 @@ export function TodayPage() {
     <section>
       <h2>Today's plan</h2>
       <p className="muted">{data.date}</p>
+      {error != null && (
+        <p className="muted">Could not refresh the plan: {errorMessage(error)}. Showing the last loaded plan.</p>
+      )}
 
       {data.warnings.length > 0 && (
         <ul className="warnings">

@@ -163,6 +163,26 @@ describe('TodayPage', () => {
     await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument())
   })
 
+  it('removes the success toast when the next action fails', async () => {
+    const user = userEvent.setup()
+    let attempt = 0
+    mockApi({
+      'GET /api/plan/today': () => jsonResponse(TODAY),
+      'POST /api/plan/today/events': () =>
+        ++attempt === 1
+          ? jsonResponse({ ...TODAY, changes: ['Marked done Gym'] })
+          : problemResponse(422, 'Unknown block', "No block with id 'x'"),
+    })
+    renderToday()
+    await user.click((await screen.findAllByRole('button', { name: 'Done' }))[0])
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Marked done Gym'))
+
+    await user.click(screen.getAllByRole('button', { name: 'Done' })[0])
+
+    expect(await screen.findByRole('alert')).toHaveTextContent("No block with id 'x'")
+    expect(screen.queryByText('Marked done Gym')).not.toBeInTheDocument()
+  })
+
   it('disables the actions while a request is running', async () => {
     const user = userEvent.setup()
     let finish: (response: Response) => void = () => {}
@@ -230,6 +250,30 @@ describe('TodayPage on a stale day', () => {
     await waitFor(() => expect(calls).toBe(2))
     expect(screen.getByText('Claude certification')).toBeInTheDocument()
     expect(screen.queryByText(/Loading today/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the timeline and shows a note when a background refresh fails, and drops the note after a good refresh', async () => {
+    let calls = 0
+    mockApi({
+      'GET /api/plan/today': () => {
+        calls++
+        return calls === 2 ? problemResponse(500, 'Unexpected error', 'Something went wrong') : jsonResponse(TODAY)
+      },
+    })
+    renderToday()
+    await screen.findByText('Claude certification')
+
+    act(() => showTab('visible'))
+
+    expect(await screen.findByText(/Something went wrong/)).toBeInTheDocument()
+    expect(screen.getByText(/Showing the last loaded plan/)).toBeInTheDocument()
+    expect(screen.getByText('Claude certification')).toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+
+    act(() => showTab('visible'))
+
+    await waitFor(() => expect(screen.queryByText(/Something went wrong/)).not.toBeInTheDocument())
+    expect(screen.getByText('Claude certification')).toBeInTheDocument()
   })
 
   // Only the interval and the clock are faked: findBy/waitFor still need the real setTimeout.
