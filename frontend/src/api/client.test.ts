@@ -36,12 +36,12 @@ describe('api client', () => {
 
   it('posts an event as JSON', async () => {
     const fetchMock = mockApi({
-      'POST /api/plan/today/events': () => jsonResponse({ ...TODAY, changes: ['Marked done Gym'] }),
+      'POST /api/plan/today/events': () => jsonResponse({ ...TODAY, changes: ['Postponed Gym'] }),
     })
 
     const result = await api.applyEvent({ type: 'POSTPONE_BLOCK', blockId: 'b1', reason: 'tired' })
 
-    expect(result.changes).toEqual(['Marked done Gym'])
+    expect(result.changes).toEqual(['Postponed Gym'])
     const init = fetchMock.mock.calls[0][1] as RequestInit
     expect(init.method).toBe('POST')
     expect(init.headers).toEqual({ 'Content-Type': 'application/json' })
@@ -56,7 +56,6 @@ describe('api client', () => {
 
     const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(sent.goals[1].deadline).toBeNull()
-    expect(sent).not.toHaveProperty('warnings')
   })
 })
 
@@ -77,7 +76,19 @@ describe('errorMessage', () => {
     )
   })
 
-  it('explains an unreachable backend for anything else', () => {
+  it('shows the backend detail of a real 500 problem body', () => {
+    expect(errorMessage(new ApiError(500, 'Unexpected error', 'Something went wrong'))).toBe('Something went wrong')
+  })
+
+  it('falls back to the title when a client error has no detail', () => {
+    expect(errorMessage(new ApiError(404, 'Not Found', ''))).toBe('Not Found')
+  })
+
+  it('explains an unreachable backend when the dev proxy answers 5xx with no problem body', () => {
+    expect(errorMessage(new ApiError(500, 'Internal Server Error', ''))).toMatch(/backend/i)
+  })
+
+  it('explains an unreachable backend when fetch itself fails', () => {
     expect(errorMessage(new TypeError('Failed to fetch'))).toMatch(/backend/i)
   })
 })

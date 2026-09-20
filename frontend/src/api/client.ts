@@ -60,7 +60,9 @@ export function isSetupRequired(error: unknown): boolean {
 }
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
+  // A 5xx without a problem+json body did not come from our backend: it is the Vite dev proxy
+  // answering (with an empty 500) for a backend that is not running.
+  if (error instanceof ApiError && (error.status < 500 || error.detail !== '')) {
     return error.message
   }
   return 'Could not reach the server. Is the backend running on port 8080?'
