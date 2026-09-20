@@ -3,13 +3,14 @@
 A personal day planner. Paste your goals and your constraints once; the app builds today's plan,
 and re-plans when the day changes (mark done, postpone, cancel, add an event).
 
-**Status:** the scheduling engine (Phase 1a) and the backend — Postgres persistence and the REST API
-(Phase 1b) — are done. The React UI is the next plan. Until then you can drive the whole app with `curl`.
+**Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API)
+and the React UI are done. Later phases add the AI layer (LLM extraction, planning agent, RAG).
 
 ## What you need
 
 - Java 21
 - Docker Desktop (running) — for the local database and for the automated tests
+- Node.js 20.19 or newer (tested with 24) — for the React UI
 
 ## Run it
 
@@ -25,6 +26,35 @@ cd backend
 Stop with `Ctrl+C`; `docker compose down` stops the database (add `-v` to wipe its data).
 If port 5432 is already in use, stop your local Postgres or change the port mapping in `docker-compose.yml`
 and set `DB_URL` accordingly.
+
+## Run the UI
+
+With the database and the backend running (previous section), in a second terminal:
+
+```bash
+cd frontend
+npm install        # once
+npm run dev        # http://localhost:5173
+```
+
+Open http://localhost:5173.
+
+1. **Setup** — the two boxes are prefilled with an example. Press **Parse**, adjust priorities or deadlines
+   if you like, press **Save**. Lines the parser did not understand are listed as "not understood" and are ignored;
+   edit the text and press Parse again.
+2. **Today** — your timeline. **Done** / **Postpone** (optionally with a reason) / **Cancel** apply to goal blocks
+   and ad-hoc events; a toast shows what the replanner changed. A block postponed three times is flagged.
+
+How it fits together: `npm run dev` starts Vite, a development web server. The browser talks only to Vite;
+Vite forwards every `/api/...` request to the Spring Boot backend on port 8080 (`frontend/vite.config.ts`),
+so there is no CORS configuration.
+
+Other commands (run inside `frontend/`):
+
+| Command | What it does |
+|---|---|
+| `npm test` | runs the Vitest tests once (`npm run test:watch` re-runs on change) |
+| `npm run build` | type-checks with `tsc`, then writes the production bundle to `frontend/dist` |
 
 ## Try the API
 
