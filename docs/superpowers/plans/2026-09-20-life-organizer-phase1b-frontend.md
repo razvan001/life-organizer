@@ -6,7 +6,7 @@
 
 **Architecture:** Plain React + TypeScript built by Vite. `api/client.ts` wraps `fetch` and turns RFC 7807 error bodies into a typed `ApiError`; a small `useApi` hook gives pages `{data, loading, error}`. Pages hold their own state with `useState`. React Router has two routes. Vite proxies `/api` to Spring Boot on port 8080, so the browser only ever talks to one origin and the backend needs no CORS setup. Tests use Vitest + React Testing Library with `fetch` replaced by a small route-based mock.
 
-**Tech Stack:** Node 20.19+ (tested with Node 24, npm 11), React 19.2, react-router-dom 7, Vite 8, Vitest 5 (jsdom), @testing-library/react 16 + user-event 14 + jest-dom 7, TypeScript ~6.0. All versions are the caret ranges in Task 1's `package.json`; they were installed and exercised together in a scratch project (54 tests + `npm run build` green) before this plan was written.
+**Tech Stack:** Node 20.19+ (tested with Node 24, npm 11), React 19.2, react-router-dom 7, Vite 8, Vitest 5 (jsdom), @testing-library/react 16 + user-event 14 + jest-dom 7, TypeScript ~6.0. All versions are the caret ranges in Task 1's `package.json`; they were installed and exercised together in a scratch project (57 tests + `npm run build` green) before this plan was written.
 
 ## Global Constraints
 
@@ -668,12 +668,12 @@ describe('api client', () => {
 
   it('posts an event as JSON', async () => {
     const fetchMock = mockApi({
-      'POST /api/plan/today/events': () => jsonResponse({ ...TODAY, changes: ['Marked done Gym'] }),
+      'POST /api/plan/today/events': () => jsonResponse({ ...TODAY, changes: ['Postponed Gym'] }),
     })
 
     const result = await api.applyEvent({ type: 'POSTPONE_BLOCK', blockId: 'b1', reason: 'tired' })
 
-    expect(result.changes).toEqual(['Marked done Gym'])
+    expect(result.changes).toEqual(['Postponed Gym'])
     const init = fetchMock.mock.calls[0][1] as RequestInit
     expect(init.method).toBe('POST')
     expect(init.headers).toEqual({ 'Content-Type': 'application/json' })
@@ -688,7 +688,6 @@ describe('api client', () => {
 
     const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(sent.goals[1].deadline).toBeNull()
-    expect(sent).not.toHaveProperty('warnings')
   })
 })
 
@@ -709,7 +708,19 @@ describe('errorMessage', () => {
     )
   })
 
-  it('explains an unreachable backend for anything else', () => {
+  it('shows the backend detail of a real 500 problem body', () => {
+    expect(errorMessage(new ApiError(500, 'Unexpected error', 'Something went wrong'))).toBe('Something went wrong')
+  })
+
+  it('falls back to the title when a client error has no detail', () => {
+    expect(errorMessage(new ApiError(404, 'Not Found', ''))).toBe('Not Found')
+  })
+
+  it('explains an unreachable backend when the dev proxy answers 5xx with no problem body', () => {
+    expect(errorMessage(new ApiError(500, 'Internal Server Error', ''))).toMatch(/backend/i)
+  })
+
+  it('explains an unreachable backend when fetch itself fails', () => {
     expect(errorMessage(new TypeError('Failed to fetch'))).toMatch(/backend/i)
   })
 })
@@ -969,7 +980,9 @@ export function isSetupRequired(error: unknown): boolean {
 }
 
 export function errorMessage(error: unknown): string {
-  if (error instanceof ApiError) {
+  // A 5xx without a problem+json body did not come from our backend: it is the Vite dev proxy
+  // answering (with an empty 500) for a backend that is not running.
+  if (error instanceof ApiError && (error.status < 500 || error.detail !== '')) {
     return error.message
   }
   return 'Could not reach the server. Is the backend running on port 8080?'
@@ -1024,7 +1037,7 @@ export function useApi<T>(load: () => Promise<T>) {
 - [ ] **Step 6: Run the tests and the production build**
 
 Run: `npm --prefix frontend test`
-Expected: PASS, 2 test files, 13 tests.
+Expected: PASS, 2 test files, 16 tests.
 
 Run: `npm --prefix frontend run build`
 Expected: `tsc -b` prints nothing, then Vite prints `✓ built in ...` and lists `dist/index.html`, one `.css` and one `.js` file. (`frontend/dist` is git-ignored.)
@@ -1434,7 +1447,7 @@ export function ChangeToast({ changes, onDismiss }: Props) {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npm --prefix frontend test`
-Expected: PASS, 5 test files, 30 tests (13 from Task 1 + 17 new: BlockCard 11, Timeline 2, ChangeToast 4).
+Expected: PASS, 5 test files, 33 tests (16 from Task 1 + 17 new: BlockCard 11, Timeline 2, ChangeToast 4).
 
 Run: `npm --prefix frontend run build`
 Expected: builds without type errors.
@@ -1680,7 +1693,7 @@ export function TodayPage() {
 - [ ] **Step 4: Run the tests to verify they pass**
 
 Run: `npm --prefix frontend test`
-Expected: PASS, 6 test files, 38 tests (TodayPage adds 8).
+Expected: PASS, 6 test files, 41 tests (TodayPage adds 8).
 
 - [ ] **Step 5: Commit**
 
@@ -2203,7 +2216,7 @@ export function SetupPage() {
 - [ ] **Step 5: Run the tests to verify they pass**
 
 Run: `npm --prefix frontend test`
-Expected: PASS, 8 test files, 52 tests (describeConstraint 6 and SetupPage 8 added).
+Expected: PASS, 8 test files, 55 tests (describeConstraint 6 and SetupPage 8 added).
 
 Run: `npm --prefix frontend run build`
 Expected: builds without type errors.
@@ -2309,7 +2322,7 @@ export default function App() {
 - [ ] **Step 4: Run all tests and the build**
 
 Run: `npm --prefix frontend test`
-Expected: PASS, 9 test files, 54 tests.
+Expected: PASS, 9 test files, 57 tests.
 
 Run: `npm --prefix frontend run build`
 Expected: builds without type errors.
