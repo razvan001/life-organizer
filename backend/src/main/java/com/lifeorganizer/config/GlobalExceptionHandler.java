@@ -22,8 +22,9 @@ import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExcep
  * Turns the app's own exceptions into RFC 7807 problem responses.
  *
  * <p>Extends {@link ResponseEntityExceptionHandler} so the standard MVC exceptions (405, 415, 404 ...) keep
- * their proper status as problem+json instead of falling into the catch-all below, and runs before Spring
- * Boot's own problem-details advice so the "Malformed request" wording below is the one clients see.
+ * their proper status as problem+json instead of falling into the catch-all below. Spring Boot's own
+ * problem-details advice backs off when a {@code ResponseEntityExceptionHandler} bean exists, so the
+ * "Malformed request" wording below is the one clients see.
  */
 @RestControllerAdvice
 @Order(Ordered.HIGHEST_PRECEDENCE)
