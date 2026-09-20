@@ -3,10 +3,19 @@ package com.lifeorganizer.plan;
 import com.lifeorganizer.domain.Constraint;
 import com.lifeorganizer.domain.DayPlan;
 import com.lifeorganizer.domain.GoalTree;
+import com.lifeorganizer.engine.AddAdhoc;
+import com.lifeorganizer.engine.CancelBlock;
 import com.lifeorganizer.engine.DayScheduler;
+import com.lifeorganizer.engine.MarkDone;
+import com.lifeorganizer.engine.PlanEvent;
+import com.lifeorganizer.engine.PostponeBlock;
+import com.lifeorganizer.engine.ReplanResult;
+import com.lifeorganizer.engine.Replanner;
+import com.lifeorganizer.engine.SetEnergy;
 import com.lifeorganizer.engine.WeekAllocator;
 import com.lifeorganizer.engine.WeekPlan;
 import com.lifeorganizer.error.SetupRequiredException;
+import com.lifeorganizer.error.UnknownBlockException;
 import com.lifeorganizer.persistence.PlanStore;
 import com.lifeorganizer.persistence.SetupStore;
 import org.springframework.stereotype.Service;
@@ -15,14 +24,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 
 /**
  * Orchestrates the Phase 1a engine on top of the stores. A day is generated lazily the first time it
- * is requested and is never regenerated afterwards.
+ * is requested and is never regenerated afterwards; replan events are applied to persisted rows by diffing.
  */
 @Service
 public class PlanService {
@@ -31,13 +42,15 @@ public class PlanService {
     private final PlanStore planStore;
     private final WeekAllocator weekAllocator;
     private final DayScheduler dayScheduler;
+    private final Replanner replanner;
 
     public PlanService(SetupStore setupStore, PlanStore planStore, WeekAllocator weekAllocator,
-                       DayScheduler dayScheduler) {
+                       DayScheduler dayScheduler, Replanner replanner) {
         this.setupStore = setupStore;
         this.planStore = planStore;
         this.weekAllocator = weekAllocator;
         this.dayScheduler = dayScheduler;
+        this.replanner = replanner;
     }
 
     @Transactional
@@ -56,8 +69,50 @@ public class PlanService {
         });
     }
 
+    @Transactional
+    public AppliedEvent applyEvent(PlanEvent event, LocalDate today) {
+        LocalDate anchor = dateOf(event);
+        Map<LocalDate, DayPlan> loaded = loadDaysFor(event, anchor);
+
+        ReplanResult result = replanner.apply(loaded, event);
+        planStore.applyChanges(loaded, result.updatedPlans());
+
+        return new AppliedEvent(getOrGenerate(today), result.changes());
+    }
+
     static LocalDate mondayOf(LocalDate date) {
         return date.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
+    }
+
+    private LocalDate dateOf(PlanEvent event) {
+        return switch (event) {
+            case AddAdhoc a -> a.date();
+            case CancelBlock c -> dateOfBlock(c.blockId());
+            case PostponeBlock p -> dateOfBlock(p.blockId());
+            case MarkDone d -> dateOfBlock(d.blockId());
+            case SetEnergy e -> dateOfBlock(e.blockId());
+        };
+    }
+
+    private LocalDate dateOfBlock(String blockId) {
+        return planStore.findBlockDate(blockId)
+            .orElseThrow(() -> new UnknownBlockException("No block with id '" + blockId + "'"));
+    }
+
+    /**
+     * The days the replanner needs to see. Always the event's own day; for a postpone also every later
+     * day of the same week, generated on demand, because that is where a postponed block may find room.
+     */
+    private Map<LocalDate, DayPlan> loadDaysFor(PlanEvent event, LocalDate anchor) {
+        Map<LocalDate, DayPlan> days = new LinkedHashMap<>();
+        days.put(anchor, getOrGenerate(anchor));
+        if (event instanceof PostponeBlock) {
+            LocalDate sunday = mondayOf(anchor).plusDays(6);
+            for (LocalDate date = anchor.plusDays(1); !date.isAfter(sunday); date = date.plusDays(1)) {
+                days.put(date, getOrGenerate(date));
+            }
+        }
+        return days;
     }
 
     private DayPlan generate(LocalDate date) {
