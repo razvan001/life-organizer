@@ -205,6 +205,27 @@ class PlanServiceEventsTest {
     }
 
     @Test
+    void postponingAnAlreadyPostponedBlockIsRefused() {
+        saveExampleSetup();
+        String certId = idOf(planService.getOrGenerate(MON), "Claude certification");
+        planService.applyEvent(new PostponeBlock(certId, "tired"), MON);
+
+        AppliedEvent applied = planService.applyEvent(new PostponeBlock(certId, "again"), MON);
+        flushAndClear();
+
+        assertThat(applied.changes()).containsExactly("Cannot postpone a postponed block (Claude certification)");
+        DayPlan monday = planStore.findDay(MON).orElseThrow();
+        assertThat(monday.blocks()).filteredOn(b -> b.id().equals(certId + "-p1")).hasSize(1);
+        Block moved = block(monday, certId + "-p1");
+        assertThat(moved.status()).isEqualTo(BlockStatus.PLANNED);
+        assertThat(moved.start()).isEqualTo(LocalTime.of(21, 0));
+        Block rest = block(monday, "free-2026-09-14-21:00-rest");
+        assertThat(rest.kind()).isEqualTo(BlockKind.FREE);
+        assertThat(rest.start()).isEqualTo(LocalTime.of(22, 0));
+        assertThat(rest.end()).isEqualTo(LocalTime.of(22, 30));
+    }
+
+    @Test
     void anUnknownBlockIdIsRejected() {
         saveExampleSetup();
         planService.getOrGenerate(MON);

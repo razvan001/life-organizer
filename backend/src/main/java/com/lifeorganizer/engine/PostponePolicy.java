@@ -29,6 +29,10 @@ public final class PostponePolicy {
         if (original.status() == BlockStatus.DONE) {
             return new ReplanResult(weekPlans, List.of("Cannot postpone a completed block (" + original.title() + ")"));
         }
+        if (original.status() == BlockStatus.POSTPONED || original.status() == BlockStatus.CANCELLED) {
+            return new ReplanResult(weekPlans, List.of(
+                "Cannot postpone a " + original.status().name().toLowerCase() + " block (" + original.title() + ")"));
+        }
 
         List<LocalDate> candidateDates = new ArrayList<>();
         candidateDates.add(originDate);

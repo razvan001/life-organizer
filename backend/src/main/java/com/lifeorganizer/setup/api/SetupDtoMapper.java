@@ -26,6 +26,8 @@ import java.util.function.Supplier;
 /** Converts between the Phase 1a domain records and the string-only setup DTOs. */
 public final class SetupDtoMapper {
 
+    private static final int MAX_TEXT_LENGTH = 255;
+
     private SetupDtoMapper() {
     }
 
@@ -55,17 +57,22 @@ public final class SetupDtoMapper {
     }
 
     public static Category toDomain(CategoryDto dto) {
+        limited(dto.id(), "category id");
+        limited(dto.name(), "category name");
         return build("category '" + dto.id() + "'", () -> new Category(dto.id(), dto.name()));
     }
 
     public static Goal toDomain(GoalDto dto, Map<String, Category> categoriesById) {
+        limited(dto.id(), "goal id");
+        limited(dto.name(), "goal name");
+        limited(dto.categoryId(), "goal categoryId");
         Category category = categoriesById.get(dto.categoryId());
         if (category == null) {
             throw new InvalidRequestException(
                 "Goal '" + dto.id() + "' refers to unknown category '" + dto.categoryId() + "'");
         }
         return build("goal '" + dto.id() + "'", () -> new Goal(dto.id(), category, dto.name(), dto.priority(),
-            dto.deadline() == null ? null : TimeFormats.parseDate(dto.deadline(), "deadline"),
+            dto.deadline() == null || dto.deadline().isBlank() ? null : TimeFormats.parseDate(dto.deadline(), "deadline"),
             dto.defaultBlockMinutes(),
             parseEnum(Energy.class, dto.energy(), "energy"),
             parseEnum(PreferredTime.class, dto.preferredTime(), "preferredTime")));
@@ -75,6 +82,7 @@ public final class SetupDtoMapper {
         if (dto.type() == null) {
             throw new InvalidRequestException("Constraint '" + dto.label() + "' has no type");
         }
+        limited(dto.label(), "constraint label");
         String what = "constraint '" + dto.label() + "'";
         return switch (dto.type()) {
             case "FIXED_BLOCK" -> build(what, () -> new FixedBlock(dto.label(),
@@ -99,6 +107,13 @@ public final class SetupDtoMapper {
             throw new InvalidRequestException(what + ": missing required value (" + e.getMessage() + ")");
         } catch (IllegalArgumentException e) {
             throw new InvalidRequestException(what + ": " + e.getMessage());
+        }
+    }
+
+    /** Text columns are varchar(255); reject longer values up front instead of failing in the database. */
+    private static void limited(String value, String field) {
+        if (value != null && value.length() > MAX_TEXT_LENGTH) {
+            throw new InvalidRequestException(field + " must be at most " + MAX_TEXT_LENGTH + " characters");
         }
     }
 

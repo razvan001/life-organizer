@@ -257,6 +257,21 @@ class ApiEndToEndTest {
     }
 
     @Test
+    void twoAdhocsStartingAtTheSameTimeAreBothKept() throws Exception {
+        saveExampleSetup();
+        getToday();
+
+        postEvent("{\"type\":\"ADD_ADHOC\",\"title\":\"Padel\",\"start\":\"21:00\",\"end\":\"22:00\"}");
+        postEvent("{\"type\":\"ADD_ADHOC\",\"title\":\"Dinner\",\"start\":\"21:00\",\"end\":\"21:30\"}");
+
+        // a brand-new request reads the persisted plan back
+        String reloaded = getToday();
+        List<Map<String, Object>> adhocs = JsonPath.read(reloaded, "$.blocks[?(@.kind=='ADHOC')]");
+        assertThat(adhocs).extracting(b -> b.get("title")).containsExactlyInAnyOrder("Padel", "Dinner");
+        assertThat(adhocs).extracting(b -> b.get("id")).doesNotHaveDuplicates();
+    }
+
+    @Test
     void errorsAreProblemDetails() throws Exception {
         saveExampleSetup();
         getToday();

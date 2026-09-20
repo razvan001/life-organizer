@@ -106,6 +106,23 @@ class ReplannerTest {
     }
 
     @Test
+    void twoAdhocsAtTheSameStartBothSurvive() {
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(), List.of()));
+
+        ReplanResult first = replanner.apply(week, new AddAdhoc(mon, "Padel", LocalTime.of(21, 0), LocalTime.of(22, 0)));
+        ReplanResult second = replanner.apply(first.updatedPlans(),
+            new AddAdhoc(mon, "Dinner", LocalTime.of(21, 0), LocalTime.of(21, 30)));
+
+        List<Block> adhocs = second.updatedPlans().get(mon).blocks().stream()
+            .filter(b -> b.kind() == BlockKind.ADHOC).toList();
+        assertThat(adhocs).extracting(Block::id)
+            .containsExactlyInAnyOrder("adhoc-" + mon + "-21:00", "adhoc-" + mon + "-21:00~2");
+        assertThat(adhocs).extracting(Block::title).containsExactlyInAnyOrder("Padel", "Dinner");
+        assertThat(adhocs).filteredOn(b -> b.id().equals("adhoc-" + mon + "-21:00"))
+            .extracting(Block::title).containsExactly("Padel");
+    }
+
+    @Test
     void addAdhocConsumesTheFreeTimeItOverlaps() {
         Block free = new Block("free-1", mon, LocalTime.of(20, 0), LocalTime.of(22, 30), "Free",
             BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
@@ -174,6 +191,34 @@ class ReplannerTest {
         Block unchanged = findBlock(result, mon, "gym");
         assertThat(unchanged.status()).isEqualTo(BlockStatus.DONE);
         assertThat(result.changes()).anyMatch(c -> c.contains("Cannot postpone"));
+    }
+
+    @Test
+    void postponeRefusesAnAlreadyPostponedBlock() {
+        Block cert = new Block("cert", mon, LocalTime.of(18, 0), LocalTime.of(19, 0), "Claude certification",
+            BlockKind.GOAL, "career-cert", BlockStatus.POSTPONED, 0, false, "tired");
+        Block freeSlot = new Block("free-1", mon, LocalTime.of(20, 0), LocalTime.of(22, 30), "Free",
+            BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(cert, freeSlot), List.of()));
+
+        ReplanResult result = replanner.apply(week, new PostponeBlock("cert", "again"));
+
+        assertThat(result.changes()).containsExactly("Cannot postpone a postponed block (Claude certification)");
+        assertThat(result.updatedPlans().get(mon).blocks()).containsExactlyInAnyOrder(cert, freeSlot);
+    }
+
+    @Test
+    void postponeRefusesACancelledBlock() {
+        Block padel = new Block("padel", mon, LocalTime.of(19, 0), LocalTime.of(20, 30), "Padel",
+            BlockKind.ADHOC, null, BlockStatus.CANCELLED, 0, false, null);
+        Block freeSlot = new Block("free-1", mon, LocalTime.of(21, 0), LocalTime.of(22, 30), "Free",
+            BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
+        Map<LocalDate, DayPlan> week = weekOf(mon, new DayPlan(mon, List.of(padel, freeSlot), List.of()));
+
+        ReplanResult result = replanner.apply(week, new PostponeBlock("padel", "again"));
+
+        assertThat(result.changes()).containsExactly("Cannot postpone a cancelled block (Padel)");
+        assertThat(result.updatedPlans().get(mon).blocks()).containsExactlyInAnyOrder(padel, freeSlot);
     }
 
     @Test

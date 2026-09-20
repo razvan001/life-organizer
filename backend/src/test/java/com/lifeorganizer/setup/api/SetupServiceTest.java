@@ -22,6 +22,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -143,6 +144,43 @@ class SetupServiceTest {
         flushAndClear();
 
         assertThat(service.load()).isEqualTo(new SetupPayload(List.of(), List.of(), List.of()));
+    }
+
+    @Test
+    void anOverlongGoalNameIsRejectedAsABadRequest() {
+        GoalDto gym = new GoalDto("health-gym", "health", "G".repeat(256), 3, null, 60, "MEDIUM", "ANY");
+        SetupPayload payload = new SetupPayload(List.of(new CategoryDto("health", "Health")), List.of(gym), List.of());
+
+        assertThatThrownBy(() -> service.save(payload))
+            .isInstanceOf(InvalidRequestException.class)
+            .hasMessage("goal name must be at most 255 characters");
+    }
+
+    @Test
+    void anOverlongConstraintLabelIsRejectedAsABadRequest() {
+        ConstraintDto social = new ConstraintDto("EVENING_QUOTA", "S".repeat(256), null, null, null,
+            null, null, null, null, "health", 2);
+        SetupPayload payload = new SetupPayload(List.of(new CategoryDto("health", "Health")), List.of(), List.of(social));
+
+        assertThatThrownBy(() -> service.save(payload))
+            .isInstanceOf(InvalidRequestException.class)
+            .hasMessage("constraint label must be at most 255 characters");
+    }
+
+    @Test
+    void nullEntriesInTheListsAreRejectedAsBadRequests() {
+        CategoryDto health = new CategoryDto("health", "Health");
+        GoalDto gym = new GoalDto("health-gym", "health", "Gym", 3, null, 60, "MEDIUM", "ANY");
+
+        assertThatThrownBy(() -> service.save(new SetupPayload(Arrays.asList(health, null), List.of(), List.of())))
+            .isInstanceOf(InvalidRequestException.class)
+            .hasMessage("categories must not contain null entries");
+        assertThatThrownBy(() -> service.save(new SetupPayload(List.of(health), Arrays.asList(gym, null), List.of())))
+            .isInstanceOf(InvalidRequestException.class)
+            .hasMessage("goals must not contain null entries");
+        assertThatThrownBy(() -> service.save(new SetupPayload(List.of(health), List.of(), Arrays.asList((ConstraintDto) null))))
+            .isInstanceOf(InvalidRequestException.class)
+            .hasMessage("constraints must not contain null entries");
     }
 
     @Test

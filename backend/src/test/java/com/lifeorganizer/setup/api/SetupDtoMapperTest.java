@@ -10,6 +10,7 @@ import com.lifeorganizer.domain.FrequencyQuota;
 import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.domain.PreferredTime;
 import com.lifeorganizer.error.InvalidRequestException;
+import com.lifeorganizer.setup.api.dto.CategoryDto;
 import com.lifeorganizer.setup.api.dto.ConstraintDto;
 import com.lifeorganizer.setup.api.dto.GoalDto;
 import org.junit.jupiter.api.Test;
@@ -75,6 +76,39 @@ class SetupDtoMapperTest {
         assertThat(dto).isEqualTo(new GoalDto("career-cert", "career", "Claude certification", 5, "2026-12-01", 90,
             "HIGH", "EVENING"));
         assertThat(SetupDtoMapper.toDomain(dto, Map.of("career", CAREER))).isEqualTo(goal);
+    }
+
+    @Test
+    void aBlankDeadlineMeansNoDeadline() {
+        GoalDto blank = new GoalDto("x", "career", "X", 3, "", 60, "MEDIUM", "ANY");
+        GoalDto spaces = new GoalDto("x", "career", "X", 3, "   ", 60, "MEDIUM", "ANY");
+
+        assertThat(SetupDtoMapper.toDomain(blank, Map.of("career", CAREER)).deadline()).isNull();
+        assertThat(SetupDtoMapper.toDomain(spaces, Map.of("career", CAREER)).deadline()).isNull();
+    }
+
+    @Test
+    void overlongTextFieldsAreRejectedAsBadRequests() {
+        String tooLong = "x".repeat(256);
+        String justRight = "x".repeat(255);
+        Map<String, Category> categories = Map.of("career", CAREER);
+
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new CategoryDto(tooLong, "Career")))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("category id must be at most 255 characters");
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new CategoryDto("career", tooLong)))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("category name must be at most 255 characters");
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto(tooLong, "career", "X", 3, null, 60, "MEDIUM", "ANY"), categories))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("goal id must be at most 255 characters");
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto("x", "career", tooLong, 3, null, 60, "MEDIUM", "ANY"), categories))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("goal name must be at most 255 characters");
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto("x", tooLong, "X", 3, null, 60, "MEDIUM", "ANY"), categories))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("goal categoryId must be at most 255 characters");
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(
+            new ConstraintDto("EVENING_QUOTA", tooLong, null, null, null, null, null, null, null, "career", 2)))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("constraint label must be at most 255 characters");
+
+        // exactly 255 is still fine
+        assertThat(SetupDtoMapper.toDomain(new CategoryDto("career", justRight)).name()).isEqualTo(justRight);
     }
 
     @Test

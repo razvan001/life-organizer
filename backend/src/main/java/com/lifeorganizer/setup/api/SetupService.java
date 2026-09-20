@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /** Parses pasted setup text, and validates then stores / loads the whole setup. */
 @Service
@@ -69,7 +70,7 @@ public class SetupService {
     @Transactional
     public void save(SetupPayload payload) {
         Map<String, Category> categoriesById = new LinkedHashMap<>();
-        for (CategoryDto dto : orEmpty(payload.categories())) {
+        for (CategoryDto dto : entries(payload.categories(), "categories")) {
             Category category = SetupDtoMapper.toDomain(dto);
             if (categoriesById.put(category.id(), category) != null) {
                 throw new InvalidRequestException("Duplicate category id '" + category.id() + "'");
@@ -77,7 +78,7 @@ public class SetupService {
         }
 
         Map<String, Goal> goalsById = new LinkedHashMap<>();
-        for (GoalDto dto : orEmpty(payload.goals())) {
+        for (GoalDto dto : entries(payload.goals(), "goals")) {
             Goal goal = SetupDtoMapper.toDomain(dto, categoriesById);
             if (goalsById.put(goal.id(), goal) != null) {
                 throw new InvalidRequestException("Duplicate goal id '" + goal.id() + "'");
@@ -85,7 +86,7 @@ public class SetupService {
         }
 
         List<Constraint> constraints = new ArrayList<>();
-        for (ConstraintDto dto : orEmpty(payload.constraints())) {
+        for (ConstraintDto dto : entries(payload.constraints(), "constraints")) {
             Constraint constraint = SetupDtoMapper.toDomain(dto);
             verifyReferences(constraint, categoriesById, goalsById);
             constraints.add(constraint);
@@ -119,7 +120,14 @@ public class SetupService {
         }
     }
 
-    private static <T> List<T> orEmpty(List<T> list) {
-        return list == null ? List.of() : list;
+    /** A missing list means "none"; a null element inside a list is a malformed request, not a server error. */
+    private static <T> List<T> entries(List<T> list, String name) {
+        if (list == null) {
+            return List.of();
+        }
+        if (list.stream().anyMatch(Objects::isNull)) {
+            throw new InvalidRequestException(name + " must not contain null entries");
+        }
+        return list;
     }
 }

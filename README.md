@@ -19,7 +19,7 @@ docker compose up -d
 
 # 2. start the backend on http://localhost:8080
 cd backend
-./mvnw spring-boot:run
+./mvnw spring-boot:run          # Windows PowerShell: .\mvnw.cmd spring-boot:run
 ```
 
 Stop with `Ctrl+C`; `docker compose down` stops the database (add `-v` to wipe its data).
@@ -63,7 +63,8 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | POST | `/api/plan/today/events` | `MARK_DONE`, `POSTPONE_BLOCK`, `CANCEL_BLOCK`, `SET_ENERGY`, `ADD_ADHOC` |
 | GET | `/api/config` | `{aiEnabled, ragEnabled}` (both false for now) |
 
-Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. Errors are RFC 7807 `application/problem+json`
+Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `deadline` is optional: send `deadline: null` (or omit it,
+or send an empty string) for no deadline. Errors are RFC 7807 `application/problem+json`
 (`404` no setup yet, `422` unknown block id, `400` invalid request).
 
 ## How planning works
@@ -71,9 +72,13 @@ Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. Errors are RFC 7807 `application/prob
 - **Goals** get a priority (1-5); each weekly quota (e.g. "Learning: 5h/week") is split across its goals by
   priority, with a boost for goals whose deadline is close.
 - A day is **generated the first time it is requested** and then stored. Editing your setup later never
-  rewrites a day that was already generated.
+  rewrites a day that was already generated. Generation is lazy in two more places: a postpone can generate
+  and persist the remaining days of that week while it looks for room, and an ad-hoc event with a future
+  date generates that day.
 - **Postpone** moves a block to a later free slot today, else to the next day with room this week. The
-  third postpone flags the block. Fixed blocks and completed blocks are never moved.
+  third postpone flags the block. Fixed blocks, routine blocks (Dinner / break, Wind down) and completed
+  blocks are never postponed, and an already-postponed or cancelled block cannot be postponed again. If no
+  slot is free this week the plan is left unchanged and the response carries a "No room this week" note.
 
 ## Known limitations
 
@@ -87,6 +92,7 @@ Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. Errors are RFC 7807 `application/prob
 
 ```bash
 cd backend && ./mvnw test    # needs Docker running; spins up a throwaway Postgres per test class
+# Windows PowerShell: cd backend; .\mvnw.cmd test
 ```
 
 ## Design documents

@@ -78,7 +78,7 @@ public final class Replanner {
         if (plan == null) {
             return new ReplanResult(weekPlans, List.of("No plan exists for " + event.date()));
         }
-        Block adhoc = new Block("adhoc-" + event.date() + "-" + event.start(), event.date(), event.start(), event.end(),
+        Block adhoc = new Block(uniqueAdhocId(plan, event), event.date(), event.start(), event.end(),
             event.title(), BlockKind.ADHOC, null, BlockStatus.PLANNED, 0, false, null);
 
         // The ad-hoc block takes over any free time it overlaps: each overlapped FREE block is
@@ -101,6 +101,19 @@ public final class Replanner {
         Map<LocalDate, DayPlan> updated = new LinkedHashMap<>(weekPlans);
         updated.put(event.date(), new DayPlan(plan.date(), blocks, plan.warnings()));
         return new ReplanResult(updated, List.of("Added " + event.title() + " at " + event.start()));
+    }
+
+    /** Two ad-hocs may share date and start; keep ids unique within the day (mirrors PlanStore's "~n" suffix). */
+    private static String uniqueAdhocId(DayPlan plan, AddAdhoc event) {
+        Set<String> taken = new HashSet<>();
+        plan.blocks().forEach(b -> taken.add(b.id()));
+        String base = "adhoc-" + event.date() + "-" + event.start();
+        String id = base;
+        int suffix = 2;
+        while (taken.contains(id)) {
+            id = base + "~" + suffix++;
+        }
+        return id;
     }
 
     private static Block freeFragment(Block source, String id, LocalTime start, LocalTime end) {
