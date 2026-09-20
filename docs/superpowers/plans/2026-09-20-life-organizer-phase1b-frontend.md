@@ -2402,3 +2402,17 @@ Prerequisite: Docker Desktop running. From the repository root: `docker compose 
 5. Restart the backend, reload Today: statuses survived.
 6. Visit `/setup`: the saved setup is shown under "Saved setup". Clear a deadline and save: no error (deadline sent as `null`).
 7. Stop the backend, press Parse: "Could not reach the server. Is the backend running on port 8080?".
+
+---
+
+## Addendum: changes made after the final review
+
+The code blocks in Tasks 1-5 above are what was first built and reviewed per task. The final whole-branch review found issues that the per-task reviews could not see; they were fixed in commits `04189f1` (during Task 1), `a39f91a` and `a58ad2f`. Where the code blocks above differ from the repository, the repository is right. Behaviour that changed:
+
+- **Backend-down hint** (`api/client.ts`): a 5xx answer without a problem+json body (what the Vite proxy sends when Spring Boot is not running) shows "Could not reach the server...". A real backend 500 keeps its own detail text.
+- **Setup page**: editing either textarea after Parse marks the preview stale (Save disabled until Parse is pressed again). On a return visit the boxes are emptied (they cannot show the saved setup, which is stored as structured data), a hint explains how to replace it, and Parse is disabled while the Goals box is empty. This stops "Parse then Save" from silently replacing a saved setup with the example.
+- **Today page**: refetches when the tab becomes visible again and once a minute when the plan's date is no longer the local date, so a tab left open past midnight never acts on yesterday's block ids. `useApi` gained a request sequence (a late response can never overwrite newer data, including data set by an action) and keeps the last data when a refresh fails (the page shows the plan plus a "Could not refresh" note). Action errors appear in a fixed box at the bottom next to the toast; a failed action clears the previous success toast.
+- **Accessibility**: the change toast's live region is always mounted; focus moves to the reason field when Postpone opens, back to Postpone on "Never mind", and to the card after an action removes its buttons.
+- **Small**: the "Postponed 3x" hint only shows on blocks that are still planned; `describeConstraint` has no trailing comma and says "1 evening"; unknown routes redirect to `/`; `engines.node >= 22.12`; `strict: true`; `preview.proxy` mirrors `server.proxy`.
+
+Tests: 88 (10 files). Known small gaps, accepted: a narrow race where `GET /api/setup` resolves after Parse was already pressed on the example text (see ledger); the timezone-sensitive rollover tests only bite outside UTC.
