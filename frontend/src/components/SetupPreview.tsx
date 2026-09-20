@@ -21,8 +21,9 @@ export function SetupPreview({ value, onChange }: Props) {
         <div className="warnings">
           <h4>Not understood (these lines are ignored)</h4>
           <ul>
-            {value.warnings.map((warning) => (
-              <li key={warning}>{warning}</li>
+            {value.warnings.map((warning, index) => (
+              // the index keeps the key unique when the same warning text appears twice
+              <li key={`${index}-${warning}`}>{warning}</li>
             ))}
           </ul>
         </div>

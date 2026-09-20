@@ -26,13 +26,17 @@ function describeMinutes(minutes: number): string {
 /** One human-readable line per constraint, for the Setup preview. */
 export function describeConstraint(constraint: ConstraintDto): string {
   switch (constraint.type) {
-    case 'FIXED_BLOCK':
-      return `${constraint.label}: ${constraint.start}–${constraint.end}, ${describeDays(constraint.days)}`
+    case 'FIXED_BLOCK': {
+      const time = `${constraint.label}: ${constraint.start}–${constraint.end}`
+      const days = describeDays(constraint.days)
+      // no days given: nothing to append (and no dangling comma)
+      return days ? `${time}, ${days}` : time
+    }
     case 'FREQUENCY_QUOTA':
       return `${constraint.label}: ${constraint.timesPerWeek}× per week, ${constraint.sessionMinutes} min each`
     case 'DURATION_QUOTA':
       return `${constraint.label}: ${describeMinutes(constraint.minutesPerWeek ?? 0)} per week`
     case 'EVENING_QUOTA':
-      return `${constraint.label}: ${constraint.eveningsPerWeek} evenings per week`
+      return `${constraint.label}: ${constraint.eveningsPerWeek} ${constraint.eveningsPerWeek === 1 ? 'evening' : 'evenings'} per week`
   }
 }

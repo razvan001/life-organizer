@@ -48,6 +48,20 @@ describe('useApi', () => {
     expect(load).toHaveBeenCalledTimes(1)
   })
 
+  it('a late load never overwrites data that setData put in after the load started', async () => {
+    const late = deferred<string>()
+    const load = vi.fn().mockReturnValue(late.promise)
+    const { result } = renderHook(() => useApi(load))
+
+    act(() => result.current.setData('action result'))
+    await act(async () => {
+      late.resolve('old')
+    })
+
+    expect(result.current.data).toBe('action result')
+    expect(result.current.loading).toBe(false)
+  })
+
   it('refetch loads again', async () => {
     const load = vi.fn().mockResolvedValueOnce('first').mockResolvedValueOnce('second')
     const { result } = renderHook(() => useApi(load))

@@ -9,6 +9,10 @@ export default defineConfig({
     // This is why the backend needs no CORS configuration.
     proxy: { '/api': 'http://localhost:8080' },
   },
+  preview: {
+    // `npm run preview` serves the built app; it needs the same /api forwarding as the dev server.
+    proxy: { '/api': 'http://localhost:8080' },
+  },
   test: {
     environment: 'jsdom',
     setupFiles: ['./src/test/setup.ts'],

@@ -22,6 +22,18 @@ describe('App', () => {
     expect(screen.getByRole('link', { name: 'Today' })).toHaveAttribute('href', '/')
   })
 
+  it('sends an unknown address to Today', async () => {
+    mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY) })
+
+    render(
+      <MemoryRouter initialEntries={['/nowhere']}>
+        <App />
+      </MemoryRouter>,
+    )
+
+    expect(await screen.findByRole('heading', { name: "Today's plan" })).toBeInTheDocument()
+  })
+
   it('shows Setup at /setup', () => {
     mockApi({ 'GET /api/setup': () => jsonResponse({ categories: [], goals: [], constraints: [] }) })
 

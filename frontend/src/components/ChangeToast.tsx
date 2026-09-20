@@ -7,7 +7,7 @@ interface Props {
 
 export const TOAST_MILLIS = 6000
 
-/** Shows what the last action changed, then hides itself. Renders nothing for an empty list. */
+/** Shows what the last action changed, then hides itself. For an empty list only an invisible live region remains. */
 export function ChangeToast({ changes, onDismiss }: Props) {
   const visible = changes.length > 0
 
@@ -17,17 +17,22 @@ export function ChangeToast({ changes, onDismiss }: Props) {
     return () => clearTimeout(timer)
   }, [changes, visible, onDismiss])
 
-  if (!visible) return null
+  // The live region stays in the page even when empty: screen readers announce text that is added
+  // to an existing region, but often stay silent about a region that appears together with its text.
   return (
-    <div className="toast" role="status">
-      <ul>
-        {changes.map((change, index) => (
-          <li key={index}>{change}</li>
-        ))}
-      </ul>
-      <button type="button" onClick={onDismiss} aria-label="Dismiss">
-        ×
-      </button>
+    <div role="status" aria-live="polite" className={visible ? 'toast' : 'visually-hidden'}>
+      {visible && (
+        <>
+          <ul>
+            {changes.map((change, index) => (
+              <li key={index}>{change}</li>
+            ))}
+          </ul>
+          <button type="button" onClick={onDismiss} aria-label="Dismiss">
+            ×
+          </button>
+        </>
+      )}
     </div>
   )
 }

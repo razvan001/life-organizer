@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
@@ -142,6 +142,117 @@ describe('SetupPage', () => {
     expect(within(screen.getByText('Career').parentElement!).getByText('Claude certification')).toBeInTheDocument()
     expect(screen.getByLabelText('Deadline for Claude certification')).toHaveValue('2026-10-01')
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+  })
+
+  it('disables Save and explains why once the text changed after a Parse', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+      'POST /api/setup/parse': () => jsonResponse(PARSED),
+    })
+    renderSetup()
+    await user.click(screen.getByRole('button', { name: 'Parse' }))
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeEnabled()
+
+    await user.type(screen.getByLabelText('Goals'), ' more')
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByText('The text changed since the last Parse. Press Parse to apply your edits.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Parse' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled())
+    expect(screen.queryByText(/The text changed since the last Parse/)).not.toBeInTheDocument()
+  })
+
+  it('also treats an edit of the constraints box as stale', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+      'POST /api/setup/parse': () => jsonResponse(PARSED),
+    })
+    renderSetup()
+    await user.click(screen.getByRole('button', { name: 'Parse' }))
+    await screen.findByRole('button', { name: 'Save' })
+
+    await user.type(screen.getByLabelText('Constraints (one per line)'), 'x')
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('is stale when the text is edited while a Parse is still running', async () => {
+    const user = userEvent.setup()
+    let finish: (response: Response) => void = () => {}
+    mockApi({
+      'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+      'POST /api/setup/parse': () => new Promise<Response>((resolve) => (finish = resolve)),
+    })
+    renderSetup()
+    await user.click(screen.getByRole('button', { name: 'Parse' }))
+
+    await user.type(screen.getByLabelText('Goals'), ' more')
+    finish(jsonResponse(PARSED))
+
+    expect(await screen.findByText(/The text changed since the last Parse/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+  })
+
+  it('empties the boxes on a return visit so the example cannot replace the saved setup', async () => {
+    const { warnings: _warnings, ...saved } = PARSED
+    mockApi({ 'GET /api/setup': () => jsonResponse(saved) })
+
+    renderSetup()
+
+    expect(await screen.findByText('Saved setup')).toBeInTheDocument()
+    expect(screen.getByLabelText('Goals')).toHaveValue('')
+    expect(screen.getByLabelText('Constraints (one per line)')).toHaveValue('')
+    expect(
+      screen.getByText(
+        'Your saved setup is shown below. To replace it, paste new goals and constraints here and press Parse.',
+      ),
+    ).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Parse' })).toBeDisabled()
+  })
+
+  it('enables Parse again once goals are typed on a return visit', async () => {
+    const user = userEvent.setup()
+    const { warnings: _warnings, ...saved } = PARSED
+    mockApi({ 'GET /api/setup': () => jsonResponse(saved) })
+    renderSetup()
+    await screen.findByText('Saved setup')
+
+    await user.type(screen.getByLabelText('Goals'), 'Health: Gym')
+
+    expect(screen.getByRole('button', { name: 'Parse' })).toBeEnabled()
+  })
+
+  it('keeps what the user typed when the saved setup arrives later', async () => {
+    const user = userEvent.setup()
+    const { warnings: _warnings, ...saved } = PARSED
+    let answer: (response: Response) => void = () => {}
+    mockApi({ 'GET /api/setup': () => new Promise<Response>((resolve) => (answer = resolve)) })
+    renderSetup()
+
+    await user.type(screen.getByLabelText('Goals'), '!')
+    answer(jsonResponse(saved))
+
+    expect(await screen.findByText('Saved setup')).toBeInTheDocument()
+    expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
+    expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toMatch(/!$/)
+    expect((screen.getByLabelText('Constraints (one per line)') as HTMLTextAreaElement).value).toContain('Work:')
+    expect(screen.queryByText(/Your saved setup is shown below/)).not.toBeInTheDocument()
+  })
+
+  it('keeps the example and an enabled Parse on a first visit, even after the setup answer arrived', async () => {
+    const fetchMock = mockApi({ 'GET /api/setup': () => jsonResponse(EMPTY_SETUP) })
+
+    renderSetup()
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await act(async () => {})
+
+    expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
+    expect(screen.getByRole('button', { name: 'Parse' })).toBeEnabled()
+    expect(screen.queryByText(/Your saved setup is shown below/)).not.toBeInTheDocument()
   })
 
   it('cannot save a parse that found no goals', async () => {

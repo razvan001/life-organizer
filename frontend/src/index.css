@@ -209,3 +209,21 @@ textarea {
   background: transparent;
   border-color: #486581;
 }
+
+.toast-error {
+  background: #7a1a1a;
+  color: #fff;
+}
+
+/* Present for screen readers, invisible on screen (used for the empty live region of the toast). */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  padding: 0;
+  margin: -1px;
+  border: 0;
+}

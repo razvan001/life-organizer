@@ -48,4 +48,14 @@ describe('describeConstraint', () => {
     const social = { ...BASE, type: 'EVENING_QUOTA' as const, label: 'Social', eveningsPerWeek: 2 }
     expect(describeConstraint(social)).toBe('Social: 2 evenings per week')
   })
+
+  it('uses the singular for one evening', () => {
+    const social = { ...BASE, type: 'EVENING_QUOTA' as const, label: 'Social', eveningsPerWeek: 1 }
+    expect(describeConstraint(social)).toBe('Social: 1 evening per week')
+  })
+
+  it('has no trailing comma when a fixed block names no days', () => {
+    expect(describeConstraint({ ...BASE, days: null })).toBe('Work: 08:30–17:00')
+    expect(describeConstraint({ ...BASE, days: [] })).toBe('Work: 08:30–17:00')
+  })
 })

@@ -1,4 +1,4 @@
-import { NavLink, Route, Routes } from 'react-router-dom'
+import { Navigate, NavLink, Route, Routes } from 'react-router-dom'
 import { SetupPage } from './pages/SetupPage'
 import { TodayPage } from './pages/TodayPage'
 
@@ -18,6 +18,8 @@ export default function App() {
         <Routes>
           <Route path="/" element={<TodayPage />} />
           <Route path="/setup" element={<SetupPage />} />
+          {/* any other address goes to Today */}
+          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </main>
     </div>

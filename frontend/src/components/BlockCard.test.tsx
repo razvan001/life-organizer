@@ -113,6 +113,75 @@ describe('BlockCard', () => {
     expect(screen.getByText('Postponed 3× — try a 25 minute version?')).toBeInTheDocument()
   })
 
+  it('shows the shorter-session hint only while the block is still planned', () => {
+    renderCard(makeBlock({ flagged: true, postponeCount: 3, status: 'DONE' }))
+
+    expect(screen.queryByText(/try a 25 minute version/)).not.toBeInTheDocument()
+  })
+
+  it('moves focus into the reason field when the postpone form opens', async () => {
+    const user = userEvent.setup()
+    renderCard()
+
+    await user.click(screen.getByRole('button', { name: 'Postpone' }))
+
+    expect(screen.getByLabelText('Reason (optional)')).toHaveFocus()
+  })
+
+  it('returns focus to the Postpone button when the user backs out', async () => {
+    const user = userEvent.setup()
+    renderCard()
+
+    await user.click(screen.getByRole('button', { name: 'Postpone' }))
+    await user.click(screen.getByRole('button', { name: 'Never mind' }))
+
+    expect(screen.getByRole('button', { name: 'Postpone' })).toHaveFocus()
+  })
+
+  it('focuses the card itself when an action makes it non-actionable', () => {
+    const onAction = vi.fn()
+    const { rerender } = render(
+      <ol>
+        <BlockCard block={makeBlock()} busy={false} onAction={onAction} />
+      </ol>,
+    )
+    expect(screen.getByRole('listitem')).not.toHaveFocus()
+
+    rerender(
+      <ol>
+        <BlockCard block={makeBlock({ status: 'DONE' })} busy={false} onAction={onAction} />
+      </ol>,
+    )
+
+    // the buttons are gone: without this, keyboard focus would fall back to <body>
+    expect(screen.getByRole('listitem')).toHaveFocus()
+  })
+
+  it('does not steal focus from another control when a card stops being actionable', async () => {
+    const user = userEvent.setup()
+    const onAction = vi.fn()
+    const { rerender } = render(
+      <>
+        <button type="button">Elsewhere</button>
+        <ol>
+          <BlockCard block={makeBlock()} busy={false} onAction={onAction} />
+        </ol>
+      </>,
+    )
+    await user.click(screen.getByRole('button', { name: 'Elsewhere' }))
+
+    rerender(
+      <>
+        <button type="button">Elsewhere</button>
+        <ol>
+          <BlockCard block={makeBlock({ status: 'DONE' })} busy={false} onAction={onAction} />
+        </ol>
+      </>,
+    )
+
+    expect(screen.getByRole('button', { name: 'Elsewhere' })).toHaveFocus()
+  })
+
   it('disables every action while a request is running', () => {
     renderCard(makeBlock(), true)
 
