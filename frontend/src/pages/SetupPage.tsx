@@ -46,16 +46,28 @@ export function SetupPage() {
     }
   }, [])
 
-  function editGoals(text: string) {
+  // Every change of the text goes through here: it stops a late saved-setup answer from emptying the
+  // boxes and marks a shown preview as no longer matching the text.
+  function markTextEdited() {
     textEdits.current++
-    setGoalsText(text)
     if (preview) setStale(true)
   }
 
+  function editGoals(text: string) {
+    markTextEdited()
+    setGoalsText(text)
+  }
+
   function editConstraints(text: string) {
-    textEdits.current++
+    markTextEdited()
     setConstraintsText(text)
-    if (preview) setStale(true)
+  }
+
+  // Local only: the saved setup changes when Parse and then Save are pressed.
+  function useExample() {
+    markTextEdited()
+    setGoalsText(EXAMPLE_GOALS)
+    setConstraintsText(EXAMPLE_CONSTRAINTS)
   }
 
   async function parse() {
@@ -116,6 +128,9 @@ export function SetupPage() {
 
       <button type="button" disabled={busy || goalsText.trim() === ''} onClick={parse}>
         Parse
+      </button>{' '}
+      <button type="button" disabled={busy} onClick={useExample}>
+        Use example text
       </button>
       {error && <p role="alert">{error}</p>}
 

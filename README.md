@@ -41,7 +41,7 @@ Open http://localhost:5173.
 
 1. **Setup** — the two boxes are prefilled with an example. Press **Parse**, adjust priorities or deadlines
    if you like, press **Save**. Lines the parser did not understand are listed as "not understood" and are ignored;
-   edit the text and press Parse again.
+   edit the text and press Parse again. **Use example text** puts the example back into the two boxes.
 2. **Today** — your timeline. **Done** / **Postpone** (optionally with a reason) / **Cancel** apply to goal blocks
    and ad-hoc events; a toast shows what the replanner changed. A block postponed three times is flagged.
 

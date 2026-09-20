@@ -2,6 +2,7 @@ import { act, fireEvent, render, screen, waitFor, within } from '@testing-librar
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router-dom'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { EXAMPLE_GOALS } from '../setup/example'
 import { PARSED } from '../test/fixtures'
 import { jsonResponse, mockApi, problemResponse } from '../test/mockApi'
 import { SetupPage } from './SetupPage'
@@ -267,5 +268,57 @@ describe('SetupPage', () => {
 
     expect(await screen.findByText('Unrecognized line: ???')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled())
+  })
+
+  it('puts the example back into the boxes on a return visit without calling the backend', async () => {
+    const user = userEvent.setup()
+    const { warnings: _warnings, ...saved } = PARSED
+    const fetchMock = mockApi({ 'GET /api/setup': () => jsonResponse(saved) })
+    renderSetup()
+    await screen.findByText('Saved setup')
+    expect(screen.getByLabelText('Goals')).toHaveValue('')
+
+    await user.click(screen.getByRole('button', { name: 'Use example text' }))
+
+    expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
+    expect((screen.getByLabelText('Constraints (one per line)') as HTMLTextAreaElement).value).toContain('Work:')
+    expect(screen.getByRole('button', { name: 'Parse' })).toBeEnabled()
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+    expect(fetchMock.mock.calls[0][0]).toBe('/api/setup')
+  })
+
+  it('marks a shown preview stale until Parse is pressed again', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+      'POST /api/setup/parse': () => jsonResponse(PARSED),
+    })
+    renderSetup()
+    await user.click(screen.getByRole('button', { name: 'Parse' }))
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeEnabled()
+
+    await user.click(screen.getByRole('button', { name: 'Use example text' }))
+
+    expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    expect(screen.getByText('The text changed since the last Parse. Press Parse to apply your edits.')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Parse' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled())
+    expect(screen.queryByText(/The text changed since the last Parse/)).not.toBeInTheDocument()
+  })
+
+  it('restores the full example goals after they were replaced', async () => {
+    const user = userEvent.setup()
+    mockApi({ 'GET /api/setup': () => jsonResponse(EMPTY_SETUP) })
+    renderSetup()
+    const goals = screen.getByLabelText('Goals') as HTMLTextAreaElement
+    await user.clear(goals)
+    await user.type(goals, 'Hobbies - padel')
+    expect(goals.value).toBe('Hobbies - padel')
+
+    await user.click(screen.getByRole('button', { name: 'Use example text' }))
+
+    expect(goals.value).toBe(EXAMPLE_GOALS)
   })
 })
