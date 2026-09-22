@@ -391,7 +391,7 @@ class AnthropicCommandClientTest {
         when(client.messages()).thenReturn(messages);
         StructuredMessage<ClaudeCommandResult> reply = mock(StructuredMessage.class);
         when(reply.content()).thenReturn(List.of());
-        when(messages.create(any())).thenReturn(reply);
+        when(messages.create(any(StructuredMessageCreateParams.class))).thenReturn(reply);
 
         AnthropicCommandClient sut = new AnthropicCommandClient(client, "claude-sonnet-5");
 
