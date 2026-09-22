@@ -3,6 +3,7 @@ package com.lifeorganizer.ai.client;
 import com.anthropic.client.AnthropicClient;
 import com.anthropic.client.okhttp.AnthropicOkHttpClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -19,5 +20,12 @@ public class ClaudeClientConfig {
     @ConditionalOnProperty(name = "ANTHROPIC_API_KEY")
     public AnthropicClient anthropicClient(@Value("${ANTHROPIC_API_KEY}") String apiKey) {
         return AnthropicOkHttpClient.builder().apiKey(apiKey).build();
+    }
+
+    @Bean
+    @ConditionalOnBean(AnthropicClient.class)
+    public ClaudeCommandClient claudeCommandClient(AnthropicClient client,
+                                                    @Value("${app.ai.model:claude-sonnet-5}") String model) {
+        return new AnthropicCommandClient(client, model);
     }
 }
