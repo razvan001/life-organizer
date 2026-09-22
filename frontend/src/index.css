@@ -227,3 +227,11 @@ textarea {
   margin: -1px;
   border: 0;
 }
+
+.proposal {
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  margin-top: 0.5rem;
+}
