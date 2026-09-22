@@ -57,6 +57,38 @@ describe('api client', () => {
     const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
     expect(sent.goals[1].deadline).toBeNull()
   })
+
+  it('fetches the feature flags', async () => {
+    mockApi({ 'GET /api/config': () => jsonResponse({ aiEnabled: true, ragEnabled: false }) })
+
+    expect(await api.getConfig()).toEqual({ aiEnabled: true, ragEnabled: false })
+  })
+
+  it('posts a command as JSON and returns the proposal', async () => {
+    const fetchMock = mockApi({
+      'POST /api/assistant/command': () =>
+        jsonResponse({ understood: true, rationale: 'ok', message: null, events: [], preview: TODAY, changes: [] }),
+    })
+
+    const result = await api.proposeCommand({ text: 'padel got canceled' })
+
+    expect(result.understood).toBe(true)
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(JSON.parse(init.body as string)).toEqual({ text: 'padel got canceled' })
+  })
+
+  it('posts events to the batch endpoint', async () => {
+    const fetchMock = mockApi({
+      'POST /api/plan/today/events/batch': () => jsonResponse({ ...TODAY, changes: ['Cancelled Padel'] }),
+    })
+    const event = { type: 'CANCEL_BLOCK' as const, blockId: 'b1', reason: null, date: null, title: null, start: null, end: null, energy: null }
+
+    const result = await api.applyEvents({ events: [event] })
+
+    expect(result.changes).toEqual(['Cancelled Padel'])
+    const init = fetchMock.mock.calls[0][1] as RequestInit
+    expect(JSON.parse(init.body as string)).toEqual({ events: [event] })
+  })
 })
 
 describe('isSetupRequired', () => {

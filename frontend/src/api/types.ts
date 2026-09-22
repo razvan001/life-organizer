@@ -88,3 +88,41 @@ export type PlanEventRequest =
   | { type: 'MARK_DONE'; blockId: string }
   | { type: 'CANCEL_BLOCK'; blockId: string }
   | { type: 'POSTPONE_BLOCK'; blockId: string; reason?: string }
+
+export interface ConfigResponse {
+  aiEnabled: boolean
+  ragEnabled: boolean
+}
+
+/** One event Claude proposes; the exact shape the backend replays on Apply. */
+export interface ProposedEventDto {
+  type: 'CANCEL_BLOCK' | 'POSTPONE_BLOCK' | 'MARK_DONE' | 'SET_ENERGY' | 'ADD_ADHOC'
+  blockId: string | null
+  reason: string | null
+  date: string | null
+  title: string | null
+  start: string | null
+  end: string | null
+  energy: string | null
+}
+
+export interface CommandRequest {
+  text: string
+}
+
+export interface CommandResponse {
+  understood: boolean
+  rationale: string | null
+  message: string | null
+  events: ProposedEventDto[]
+  preview: TodayPlanResponse | null
+  changes: string[]
+}
+
+export interface ApplyEventsRequest {
+  events: ProposedEventDto[]
+}
+
+export interface ApplyEventsResponse extends TodayPlanResponse {
+  changes: string[]
+}

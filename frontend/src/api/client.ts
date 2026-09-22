@@ -1,5 +1,10 @@
 import type {
   ApplyEventResponse,
+  ApplyEventsRequest,
+  ApplyEventsResponse,
+  CommandRequest,
+  CommandResponse,
+  ConfigResponse,
   PlanEventRequest,
   SetupParseRequest,
   SetupParseResponse,
@@ -52,6 +57,9 @@ export const api = {
   saveSetup: (setup: SetupPayload) => send<SetupPayload>('PUT', '/api/setup', setup),
   getToday: () => send<TodayPlanResponse>('GET', '/api/plan/today'),
   applyEvent: (event: PlanEventRequest) => send<ApplyEventResponse>('POST', '/api/plan/today/events', event),
+  getConfig: () => send<ConfigResponse>('GET', '/api/config'),
+  proposeCommand: (request: CommandRequest) => send<CommandResponse>('POST', '/api/assistant/command', request),
+  applyEvents: (request: ApplyEventsRequest) => send<ApplyEventsResponse>('POST', '/api/plan/today/events/batch', request),
 }
 
 /** True when the backend says no setup is saved yet: the UI then sends the user to /setup. */
