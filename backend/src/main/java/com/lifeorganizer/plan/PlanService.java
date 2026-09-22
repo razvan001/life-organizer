@@ -24,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.temporal.TemporalAdjusters;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -78,6 +79,50 @@ public class PlanService {
         planStore.applyChanges(loaded, result.updatedPlans());
 
         return new AppliedEvent(getOrGenerate(today), result.changes());
+    }
+
+    /**
+     * Like {@link #applyEvent}, but for several events at once and without persisting anything - used
+     * to build a preview/proposal. Events are chained: each one sees the plan as the previous one left it.
+     */
+    @Transactional(readOnly = true)
+    public AppliedEvent simulateEvents(List<PlanEvent> events, LocalDate today) {
+        Map<LocalDate, DayPlan> current = new LinkedHashMap<>();
+        List<String> allChanges = new ArrayList<>();
+        for (PlanEvent event : events) {
+            LocalDate anchor = dateOf(event);
+            for (Map.Entry<LocalDate, DayPlan> entry : loadDaysFor(event, anchor).entrySet()) {
+                current.putIfAbsent(entry.getKey(), entry.getValue());
+            }
+            ReplanResult result = replanner.apply(current, event);
+            current = new LinkedHashMap<>(result.updatedPlans());
+            allChanges.addAll(result.changes());
+        }
+        DayPlan todayPlan = current.getOrDefault(today, getOrGenerate(today));
+        return new AppliedEvent(todayPlan, allChanges);
+    }
+
+    /**
+     * Applies every event and persists all of them in one transaction: if any event fails, none of the
+     * batch's changes are written. Plain REQUIRED (the default, same as every other method here) is
+     * correct: a caller (a controller) has no ambient transaction of its own to join, so this always
+     * opens one real transaction, and a failure rolls it back immediately and for real.
+     */
+    @Transactional
+    public AppliedEvent applyEvents(List<PlanEvent> events, LocalDate today) {
+        Map<LocalDate, DayPlan> current = new LinkedHashMap<>();
+        List<String> allChanges = new ArrayList<>();
+        for (PlanEvent event : events) {
+            LocalDate anchor = dateOf(event);
+            for (Map.Entry<LocalDate, DayPlan> entry : loadDaysFor(event, anchor).entrySet()) {
+                current.putIfAbsent(entry.getKey(), entry.getValue());
+            }
+            ReplanResult result = replanner.apply(current, event);
+            planStore.applyChanges(current, result.updatedPlans());
+            current = new LinkedHashMap<>(result.updatedPlans());
+            allChanges.addAll(result.changes());
+        }
+        return new AppliedEvent(getOrGenerate(today), allChanges);
     }
 
     static LocalDate mondayOf(LocalDate date) {
