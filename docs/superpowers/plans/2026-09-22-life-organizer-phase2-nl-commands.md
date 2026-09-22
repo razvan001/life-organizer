@@ -858,9 +858,11 @@ git commit -m "feat: add CommandInterpreter (prompt building and reply validatio
 - Consumes: nothing new — reuses `loadDaysFor`, `dateOf`, `getOrGenerate`, `replanner`, `planStore` already in `PlanService`.
 - Produces: `PlanService.simulateEvents(List<PlanEvent> events, LocalDate today): AppliedEvent` (never persists), `PlanService.applyEvents(List<PlanEvent> events, LocalDate today): AppliedEvent` (persists all events atomically in one transaction — a failure partway through rolls back every earlier event in the same call). These are what `AssistantController` (Task 6) and the new batch endpoint (Task 5) call.
 
+**Design note verified during execution:** `applyEvents` must stay plain `@Transactional` (REQUIRED, matching every other method on this class), not `REQUIRES_NEW`. REQUIRED is already correct for production — a controller calling `applyEvents` has no ambient transaction to join, so REQUIRED opens one real transaction and a failure rolls it back immediately and for real. But *testing* that rollback needs a test with no wrapping transaction of its own: `@DataJpaTest` wraps every test method in one ambient, never-committed transaction, so a plain `@Transactional` method just joins it, and an exception only marks that ambient transaction rollback-only — the physical rollback doesn't happen until test teardown, so a same-test read afterward still sees the not-yet-undone write. `REQUIRES_NEW` "fixes" that read, but breaks something else: it forces a genuinely separate physical transaction/connection that then can't see the test's own setup data, which was written inside the *ambient* (still-uncommitted) transaction. The correct fix is to test rollback in a plain `@SpringBootTest` instead (no ambient wrapping transaction, exactly like this codebase's existing `ApiEndToEndTest`), so `applyEvents`'s own `@Transactional` becomes the real, outermost, genuinely-committing-or-rolling-back boundary — which is exactly how it runs in production. This is why the rollback test below lives in its own file with its own test class annotations, while the other two tests stay in a `@DataJpaTest` (they only need to see writes/non-writes within one still-open transaction, which works fine either way).
+
 - [ ] **Step 1: Write the failing tests**
 
-`backend/src/test/java/com/lifeorganizer/plan/PlanServiceMultiEventTest.java`:
+`backend/src/test/java/com/lifeorganizer/plan/PlanServiceMultiEventTest.java` (2 tests — the "success" paths, which work fine under `@DataJpaTest`'s ambient-transaction semantics):
 
 ```java
 package com.lifeorganizer.plan;
@@ -872,7 +874,6 @@ import com.lifeorganizer.domain.DayPlan;
 import com.lifeorganizer.engine.CancelBlock;
 import com.lifeorganizer.engine.MarkDone;
 import com.lifeorganizer.engine.PlanEvent;
-import com.lifeorganizer.error.UnknownBlockException;
 import com.lifeorganizer.persistence.PlanStore;
 import com.lifeorganizer.persistence.SetupStore;
 import com.lifeorganizer.support.ExampleSetup;
@@ -892,7 +893,6 @@ import java.time.LocalDate;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
@@ -966,15 +966,88 @@ class PlanServiceMultiEventTest {
         assertThat(block(reloaded, gymId).status()).isEqualTo(BlockStatus.DONE);
         assertThat(block(reloaded, certId).status()).isEqualTo(BlockStatus.CANCELLED);
     }
+}
+```
+
+`backend/src/test/java/com/lifeorganizer/plan/PlanServiceApplyEventsRollbackTest.java` (1 test — the atomic-rollback guarantee, which needs a real transaction boundary to observe):
+
+```java
+package com.lifeorganizer.plan;
+
+import com.lifeorganizer.domain.Block;
+import com.lifeorganizer.domain.BlockStatus;
+import com.lifeorganizer.domain.DayPlan;
+import com.lifeorganizer.engine.MarkDone;
+import com.lifeorganizer.engine.PlanEvent;
+import com.lifeorganizer.error.UnknownBlockException;
+import com.lifeorganizer.persistence.PlanStore;
+import com.lifeorganizer.persistence.SetupStore;
+import com.lifeorganizer.support.ExampleSetup;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.postgresql.PostgreSQLContainer;
+
+import java.time.LocalDate;
+import java.util.List;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+/**
+ * A plain @SpringBootTest, deliberately not @DataJpaTest: this test needs no wrapping ambient
+ * transaction, so PlanService.applyEvents' own @Transactional is the real, outermost, genuinely
+ * committing-or-rolling-back boundary - exactly how a controller calls it in production.
+ */
+@SpringBootTest
+@Testcontainers
+class PlanServiceApplyEventsRollbackTest {
+
+    @Container
+    @ServiceConnection
+    static PostgreSQLContainer postgres = new PostgreSQLContainer("pgvector/pgvector:pg17");
+
+    private static final LocalDate MON = ExampleSetup.MONDAY;
+
+    @Autowired
+    PlanService planService;
+
+    @Autowired
+    SetupStore setupStore;
+
+    @Autowired
+    PlanStore planStore;
+
+    @Autowired
+    JdbcTemplate jdbc;
+
+    @BeforeEach
+    void cleanDatabase() {
+        jdbc.execute("truncate table day_warning, block, plan_constraint, goal, category restart identity");
+    }
+
+    private String idOf(DayPlan plan, String title) {
+        return plan.blocks().stream()
+            .filter(b -> b.title().equals(title) && b.status() == BlockStatus.PLANNED)
+            .findFirst().orElseThrow().id();
+    }
+
+    private Block block(DayPlan plan, String id) {
+        return plan.blocks().stream().filter(b -> b.id().equals(id)).findFirst().orElseThrow();
+    }
 
     @Test
     void applyEventsRollsBackEveryEventWhenOneFails() {
-        saveExampleSetup();
+        setupStore.replace(ExampleSetup.tree(), ExampleSetup.constraints());
         String gymId = idOf(planService.getOrGenerate(MON), "Gym");
 
         List<PlanEvent> events = List.of(new MarkDone(gymId), new MarkDone("no-such-id"));
         assertThatThrownBy(() -> planService.applyEvents(events, MON)).isInstanceOf(UnknownBlockException.class);
-        flushAndClear();
 
         assertThat(block(planStore.findDay(MON).orElseThrow(), gymId).status()).isEqualTo(BlockStatus.PLANNED);
     }
@@ -983,12 +1056,12 @@ class PlanServiceMultiEventTest {
 
 - [ ] **Step 2: Run the tests to verify they fail**
 
-Run: `cd backend && ./mvnw test -Dtest=PlanServiceMultiEventTest`
+Run: `cd backend && ./mvnw test -Dtest=PlanServiceMultiEventTest,PlanServiceApplyEventsRollbackTest`
 Expected: FAIL to compile — `simulateEvents`/`applyEvents` do not exist yet on `PlanService`.
 
 - [ ] **Step 3: Add the two methods to `PlanService`**
 
-Open `backend/src/main/java/com/lifeorganizer/plan/PlanService.java`. Add `import java.util.ArrayList;` and `import org.springframework.transaction.annotation.Propagation;` to the existing import list, then add these two methods right after the existing `applyEvent` method:
+Open `backend/src/main/java/com/lifeorganizer/plan/PlanService.java`. Add `import java.util.ArrayList;` to the existing import list, then add these two methods right after the existing `applyEvent` method:
 
 ```java
     /**
@@ -1014,12 +1087,11 @@ Open `backend/src/main/java/com/lifeorganizer/plan/PlanService.java`. Add `impor
 
     /**
      * Applies every event and persists all of them in one transaction: if any event fails, none of the
-     * batch's changes are written. REQUIRES_NEW (not the plain REQUIRED used elsewhere) so this always
-     * opens its own physical transaction and rolls it back immediately on failure, rather than only
-     * flagging an ambient caller's transaction rollback-only - callers in production have no open
-     * transaction of their own to join anyway, so this changes nothing for them.
+     * batch's changes are written. Plain REQUIRED (the default, same as every other method here) is
+     * correct: a caller (a controller) has no ambient transaction of its own to join, so this always
+     * opens one real transaction, and a failure rolls it back immediately and for real.
      */
-    @Transactional(propagation = Propagation.REQUIRES_NEW)
+    @Transactional
     public AppliedEvent applyEvents(List<PlanEvent> events, LocalDate today) {
         Map<LocalDate, DayPlan> current = new LinkedHashMap<>();
         List<String> allChanges = new ArrayList<>();
@@ -1039,8 +1111,8 @@ Open `backend/src/main/java/com/lifeorganizer/plan/PlanService.java`. Add `impor
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
-Run: `cd backend && ./mvnw test -Dtest=PlanServiceMultiEventTest`
-Expected: PASS, 3/3.
+Run: `cd backend && ./mvnw test -Dtest=PlanServiceMultiEventTest,PlanServiceApplyEventsRollbackTest`
+Expected: PASS, 3/3 (2 + 1).
 
 Run: `cd backend && ./mvnw test`
 Expected: PASS, 221 + 3 = 224.
@@ -1048,7 +1120,7 @@ Expected: PASS, 221 + 3 = 224.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add backend/src/main/java/com/lifeorganizer/plan/PlanService.java backend/src/test/java/com/lifeorganizer/plan/PlanServiceMultiEventTest.java
+git add backend/src/main/java/com/lifeorganizer/plan/PlanService.java backend/src/test/java/com/lifeorganizer/plan/PlanServiceMultiEventTest.java backend/src/test/java/com/lifeorganizer/plan/PlanServiceApplyEventsRollbackTest.java
 git commit -m "feat: add PlanService.simulateEvents and applyEvents"
 ```
 
