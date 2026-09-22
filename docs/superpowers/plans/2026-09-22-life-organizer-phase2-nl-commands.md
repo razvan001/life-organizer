@@ -1193,11 +1193,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @WebMvcTest(PlanController.class)
 class PlanControllerBatchTest {
 
-    private static final LocalDateTimeStub TODAY = new LocalDateTimeStub();
-
-    private static final class LocalDateTimeStub {
-    }
-
     @Autowired
     MockMvc mvc;
 
