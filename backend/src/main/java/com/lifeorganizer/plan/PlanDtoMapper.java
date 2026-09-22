@@ -4,6 +4,7 @@ import com.lifeorganizer.api.TimeFormats;
 import com.lifeorganizer.domain.Block;
 import com.lifeorganizer.domain.DayPlan;
 import com.lifeorganizer.plan.dto.ApplyEventResponse;
+import com.lifeorganizer.plan.dto.ApplyEventsResponse;
 import com.lifeorganizer.plan.dto.BlockDto;
 import com.lifeorganizer.plan.dto.TodayPlanResponse;
 
@@ -28,6 +29,12 @@ public final class PlanDtoMapper {
     public static ApplyEventResponse toResponse(AppliedEvent applied) {
         DayPlan today = applied.today();
         return new ApplyEventResponse(TimeFormats.format(today.date()), blocksOf(today), today.warnings(),
+            applied.changes());
+    }
+
+    public static ApplyEventsResponse toEventsResponse(AppliedEvent applied) {
+        DayPlan today = applied.today();
+        return new ApplyEventsResponse(TimeFormats.format(today.date()), blocksOf(today), today.warnings(),
             applied.changes());
     }
 
