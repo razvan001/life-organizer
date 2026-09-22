@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useState } from 'react'
 import { Navigate } from 'react-router-dom'
 import { api, errorMessage, isSetupRequired } from '../api/client'
-import type { PlanEventRequest } from '../api/types'
+import type { ApplyEventsResponse, PlanEventRequest } from '../api/types'
 import { useApi } from '../api/useApi'
+import { AssistantBox } from '../components/AssistantBox'
 import { ChangeToast } from '../components/ChangeToast'
 import { Timeline } from '../components/Timeline'
 
@@ -18,6 +19,7 @@ function localDate(now: Date = new Date()): string {
 
 export function TodayPage() {
   const { data, loading, error, setData, refetch } = useApi(api.getToday)
+  const { data: config } = useApi(api.getConfig)
   const [changes, setChanges] = useState<string[]>([])
   const [busy, setBusy] = useState(false)
   const [actionError, setActionError] = useState<string | null>(null)
@@ -57,6 +59,11 @@ export function TodayPage() {
     }
   }
 
+  function onAssistantApplied(result: ApplyEventsResponse) {
+    setData({ date: result.date, blocks: result.blocks, warnings: result.warnings })
+    setChanges(result.changes)
+  }
+
   if (isSetupRequired(error)) {
     return <Navigate to="/setup" replace />
   }
@@ -85,6 +92,7 @@ export function TodayPage() {
 
       <Timeline blocks={data.blocks} busy={busy} onAction={act} />
       <ChangeToast changes={changes} onDismiss={dismissToast} />
+      {config?.aiEnabled && <AssistantBox currentBlocks={data.blocks} busy={busy} onApplied={onAssistantApplied} />}
       {actionError && (
         // fixed at the bottom of the window, where the user's eyes are after pressing a block's button
         <div className="toast toast-error" role="alert">

@@ -23,7 +23,7 @@ const CERT_ID = 'career-claude-certification-2026-09-14'
 
 describe('TodayPage', () => {
   it("shows today's blocks in order", async () => {
-    mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY) })
+    mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY), 'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }) })
 
     renderToday()
 
@@ -34,7 +34,7 @@ describe('TodayPage', () => {
   })
 
   it('shows the plan warnings', async () => {
-    mockApi({ 'GET /api/plan/today': () => jsonResponse({ ...TODAY, warnings: ['Learning quota does not fit'] }) })
+    mockApi({ 'GET /api/plan/today': () => jsonResponse({ ...TODAY, warnings: ['Learning quota does not fit'] }), 'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }) })
 
     renderToday()
 
@@ -44,6 +44,7 @@ describe('TodayPage', () => {
   it('sends the user to Setup when no setup is saved yet', async () => {
     mockApi({
       'GET /api/plan/today': () => problemResponse(404, 'Setup required', 'No setup saved yet'),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
     })
 
     renderToday()
@@ -52,7 +53,7 @@ describe('TodayPage', () => {
   })
 
   it('shows other load errors', async () => {
-    mockApi({ 'GET /api/plan/today': () => problemResponse(500, 'Unexpected error', 'Something went wrong') })
+    mockApi({ 'GET /api/plan/today': () => problemResponse(500, 'Unexpected error', 'Something went wrong'), 'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }) })
 
     renderToday()
 
@@ -63,6 +64,7 @@ describe('TodayPage', () => {
     const user = userEvent.setup()
     const fetchMock = mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       'POST /api/plan/today/events': () =>
         jsonResponse({
           date: '2026-09-14',
@@ -88,6 +90,7 @@ describe('TodayPage', () => {
     const moved = makeBlock({ id: `${CERT_ID}-p1`, start: '21:00', end: '22:00', postponeCount: 1 })
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       'POST /api/plan/today/events': () =>
         jsonResponse({
           date: '2026-09-14',
@@ -115,6 +118,7 @@ describe('TodayPage', () => {
     const user = userEvent.setup()
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       'POST /api/plan/today/events': () => problemResponse(422, 'Unknown block', "No block with id 'x'"),
     })
     renderToday()
@@ -135,6 +139,7 @@ describe('TodayPage', () => {
     const user = userEvent.setup()
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       'POST /api/plan/today/events': () => problemResponse(422, 'Unknown block', "No block with id 'x'"),
     })
     renderToday()
@@ -149,6 +154,7 @@ describe('TodayPage', () => {
     let attempt = 0
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       'POST /api/plan/today/events': () =>
         ++attempt === 1
           ? problemResponse(422, 'Unknown block', "No block with id 'x'")
@@ -168,6 +174,7 @@ describe('TodayPage', () => {
     let attempt = 0
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       'POST /api/plan/today/events': () =>
         ++attempt === 1
           ? jsonResponse({ ...TODAY, changes: ['Marked done Gym'] })
@@ -188,6 +195,7 @@ describe('TodayPage', () => {
     let finish: (response: Response) => void = () => {}
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       'POST /api/plan/today/events': () => new Promise<Response>((resolve) => (finish = resolve)),
     })
     renderToday()
@@ -197,6 +205,29 @@ describe('TodayPage', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Done' })[0]).toBeDisabled())
     finish(jsonResponse({ ...TODAY, changes: [] }))
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Done' })[0]).toBeEnabled())
+  })
+
+  it('shows the assistant box only when the backend reports aiEnabled', async () => {
+    mockApi({
+      'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: true, ragEnabled: false }),
+    })
+
+    renderToday()
+
+    expect(await screen.findByLabelText('Tell it what changed')).toBeInTheDocument()
+  })
+
+  it('does not show the assistant box when aiEnabled is false', async () => {
+    mockApi({
+      'GET /api/plan/today': () => jsonResponse(TODAY),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
+    })
+
+    renderToday()
+
+    await screen.findByRole('heading', { name: "Today's plan" })
+    expect(screen.queryByLabelText('Tell it what changed')).not.toBeInTheDocument()
   })
 })
 
@@ -217,7 +248,7 @@ describe('TodayPage on a stale day', () => {
   }
 
   it('loads the plan again when the tab becomes visible', async () => {
-    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY) })
+    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY), 'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }) })
     renderToday()
     await screen.findByText('Claude certification')
     expect(countToday(fetchMock)).toBe(1)
@@ -228,7 +259,7 @@ describe('TodayPage on a stale day', () => {
   })
 
   it('does not load again when the tab is hidden', async () => {
-    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY) })
+    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY), 'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }) })
     renderToday()
     await screen.findByText('Claude certification')
 
@@ -241,6 +272,7 @@ describe('TodayPage on a stale day', () => {
     let calls = 0
     mockApi({
       'GET /api/plan/today': () => (++calls === 1 ? jsonResponse(TODAY) : new Promise<Response>(() => {})),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
     })
     renderToday()
     await screen.findByText('Claude certification')
@@ -259,6 +291,7 @@ describe('TodayPage on a stale day', () => {
         calls++
         return calls === 2 ? problemResponse(500, 'Unexpected error', 'Something went wrong') : jsonResponse(TODAY)
       },
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
     })
     renderToday()
     await screen.findByText('Claude certification')
@@ -282,7 +315,7 @@ describe('TodayPage on a stale day', () => {
   it('reloads within a minute once the calendar day has moved on from the shown plan', async () => {
     vi.useFakeTimers(FAKE)
     vi.setSystemTime(new Date(2026, 8, 15, 0, 5, 0)) // local time: the plan on screen is for 2026-09-14
-    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY) })
+    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY), 'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }) })
     renderToday()
     await screen.findByText('Claude certification')
     expect(countToday(fetchMock)).toBe(1)
@@ -297,7 +330,7 @@ describe('TodayPage on a stale day', () => {
   it('does not reload every minute while the shown plan is still for today', async () => {
     vi.useFakeTimers(FAKE)
     vi.setSystemTime(new Date(2026, 8, 14, 23, 30, 0))
-    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY) })
+    const fetchMock = mockApi({ 'GET /api/plan/today': () => jsonResponse(TODAY), 'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }) })
     renderToday()
     await screen.findByText('Claude certification')
 
