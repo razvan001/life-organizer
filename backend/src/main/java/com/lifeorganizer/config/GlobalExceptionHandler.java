@@ -1,5 +1,7 @@
 package com.lifeorganizer.config;
 
+import com.lifeorganizer.error.AiNotConfiguredException;
+import com.lifeorganizer.error.AssistantUnavailableException;
 import com.lifeorganizer.error.InvalidRequestException;
 import com.lifeorganizer.error.SetupRequiredException;
 import com.lifeorganizer.error.UnknownBlockException;
@@ -45,6 +47,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidRequestException.class)
     public ProblemDetail invalidRequest(InvalidRequestException e) {
         return problem(400, "Invalid request", e.getMessage());
+    }
+
+    @ExceptionHandler(AssistantUnavailableException.class)
+    public ProblemDetail assistantUnavailable(AssistantUnavailableException e) {
+        return problem(502, "Assistant unavailable", e.getMessage());
+    }
+
+    @ExceptionHandler(AiNotConfiguredException.class)
+    public ProblemDetail aiNotConfigured(AiNotConfiguredException e) {
+        return problem(503, "AI features are not configured", e.getMessage());
     }
 
     @Override
