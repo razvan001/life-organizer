@@ -988,7 +988,7 @@ Expected: FAIL to compile — `simulateEvents`/`applyEvents` do not exist yet on
 
 - [ ] **Step 3: Add the two methods to `PlanService`**
 
-Open `backend/src/main/java/com/lifeorganizer/plan/PlanService.java`. Add `import java.util.ArrayList;` to the existing import list, then add these two methods right after the existing `applyEvent` method:
+Open `backend/src/main/java/com/lifeorganizer/plan/PlanService.java`. Add `import java.util.ArrayList;` and `import org.springframework.transaction.annotation.Propagation;` to the existing import list, then add these two methods right after the existing `applyEvent` method:
 
 ```java
     /**
@@ -1014,9 +1014,12 @@ Open `backend/src/main/java/com/lifeorganizer/plan/PlanService.java`. Add `impor
 
     /**
      * Applies every event and persists all of them in one transaction: if any event fails, none of the
-     * batch's changes are written.
+     * batch's changes are written. REQUIRES_NEW (not the plain REQUIRED used elsewhere) so this always
+     * opens its own physical transaction and rolls it back immediately on failure, rather than only
+     * flagging an ambient caller's transaction rollback-only - callers in production have no open
+     * transaction of their own to join anyway, so this changes nothing for them.
      */
-    @Transactional
+    @Transactional(propagation = Propagation.REQUIRES_NEW)
     public AppliedEvent applyEvents(List<PlanEvent> events, LocalDate today) {
         Map<LocalDate, DayPlan> current = new LinkedHashMap<>();
         List<String> allChanges = new ArrayList<>();
