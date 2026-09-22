@@ -27,16 +27,30 @@ Today, changing the plan because something changed in real life ("padel got canc
 
 ### Package layout
 
+The rest of the backend is organized by feature (`plan/`, `setup/`, `persistence/`) and stays that way — this spec doesn't touch it. The new `ai/` package alone is organized by technical layer (controller → service → client), so the Anthropic SDK never leaks past `ai/client/`:
+
 ```
 backend/src/main/java/com/lifeorganizer/
-├── domain/, setup/, engine/, persistence/, plan/, setup/api/, config/   (unchanged)
+├── domain/, setup/, engine/, persistence/, plan/, setup/api/, config/   (unchanged, feature-organized)
 └── ai/
-    ├── ClaudeClientConfig     — builds the Anthropic client bean from ANTHROPIC_API_KEY; no key, no bean
-    ├── CommandInterpreter     — builds the prompt, calls Claude, parses the structured result
-    ├── InterpretedCommand     — record: understood (boolean), rationale (String, nullable), events (List<PlanEvent>)
-    ├── AssistantController    — POST /api/assistant/command
-    └── dto/ — CommandRequest, CommandResponse, ApplyEventsRequest, ApplyEventsResponse
+    ├── controller/
+    │   └── AssistantController        — HTTP layer only: POST /api/assistant/command, delegates below
+    ├── service/
+    │   └── CommandInterpreter         — business logic: builds the prompt/context, calls ClaudeCommandClient,
+    │                                     validates the result (event count cap, known block ids), never touches HTTP
+    ├── client/
+    │   ├── ClaudeClientConfig         — Spring @Configuration: builds the Anthropic SDK client bean from
+    │   │                                 ANTHROPIC_API_KEY; no key, no bean
+    │   └── ClaudeCommandClient        — interface + implementation wrapping the one Anthropic SDK call this
+    │                                     feature needs; the only place the SDK's types appear. CommandInterpreterTest
+    │                                     stubs this interface, so no real network call happens in the test suite.
+    ├── model/
+    │   └── InterpretedCommand         — record: understood (boolean), rationale (String, nullable), events (List<PlanEvent>)
+    └── dto/
+        └── CommandRequest, CommandResponse
 ```
+
+`ApplyEventsRequest`/`ApplyEventsResponse` (the new batch-apply shapes) live in `plan/dto/` alongside the existing `ApplyEventRequest`/`ApplyEventResponse`, since they belong to `PlanController`, not to the assistant feature — the batch endpoint is generic, plain-engine functionality that the assistant happens to be the first caller of.
 
 ### `PlanService` additions
 
@@ -52,19 +66,25 @@ Same loading and chaining, but calls `planStore.applyChanges` for each event's d
 
 Both reuse the existing per-event validation and exceptions (`UnknownBlockException` → 422, refusal messages from `PostponePolicy`/`Replanner` → carried in `changes`, exactly as today).
 
-### `CommandInterpreter`
+### `ai/client/ClaudeCommandClient`
 
-Input: the user's text, today's date, and today's blocks reduced to `{id, title, kind, status, start, end}` (no other days — commands act on today only, matching engine scope). Claude is asked to return one structured result:
+The only class that imports the Anthropic SDK. Its method takes the already-built prompt/context and returns the raw structured result (or throws on a network/API failure) — it does no validation and knows nothing about `PlanEvent` beyond deserializing into the same shape. This is what makes `CommandInterpreter` unit-testable without a real API call: tests provide a stub/fake implementation of this interface.
+
+### `ai/service/CommandInterpreter`
+
+Input: the user's text, today's date, and today's blocks reduced to `{id, title, kind, status, start, end}` (no other days — commands act on today only, matching engine scope). Builds the prompt, calls `ClaudeCommandClient`, and turns the result into one `InterpretedCommand`:
 
 - `understood: false, message: "..."` when the text doesn't map to any of the 5 event types against a real block (wrong title, ambiguous target, nothing to do), **or**
 - `understood: true, rationale: "one sentence", events: [...]` where each event has exactly the shape `ApplyEventRequest` already parses (`type`, `blockId`, `reason`, `date`, `title`, `start`, `end`, `energy`) and every `blockId` is one of the ids Claude was given.
 
-The interpreter validates the returned event list itself before trusting it: reject (fall back to `understood:false`) if any `blockId` wasn't in the context list, if there are more than 5 events, or if the response doesn't parse — a malformed or empty model response is a "not understood" outcome, never a crash or a silently-empty proposal.
+This is where validation of the model's *content* happens, not in the client: reject (fall back to `understood:false`) if any `blockId` wasn't in the context list, if there are more than 5 events, or if the response doesn't parse — a malformed or empty model response is a "not understood" outcome, never a crash or a silently-empty proposal. A `ClaudeCommandClient` failure (network error, rate limit, auth, timeout) is a different kind of problem — connectivity, not content — so `CommandInterpreter` does **not** catch it; it propagates to the controller, which is the only place that turns it into the distinct "assistant unavailable" response (below). This keeps "I couldn't understand your sentence" and "the assistant is unreachable right now" from ever being confused for each other.
 
-### `AssistantController`
+### `ai/controller/AssistantController`
+
+Thin HTTP layer: maps the request/response DTOs and status codes, delegates everything else to `CommandInterpreter` and `PlanService`. No business logic here.
 
 - `POST /api/assistant/command` — body `{text}` → `CommandResponse{understood, rationale, message, events[], preview: TodayPlanResponse, changes[]}`. When `understood` is false, `rationale`/`events`/`preview`/`changes` are absent/empty and `message` explains why. Calls `CommandInterpreter` then, if understood, `PlanService.simulateEvents`.
-- Errors: Claude call fails (network, rate limit, auth) → `502` `ProblemDetail` "Assistant unavailable". No `ANTHROPIC_API_KEY` configured (defensive — the UI shouldn't call this when `aiEnabled:false`) → `503` "AI features are not configured".
+- Errors: `ClaudeCommandClient` throws (network, rate limit, auth) → `502` `ProblemDetail` "Assistant unavailable" — this is a connectivity failure, kept distinct from `CommandInterpreter`'s ordinary "not understood" outcome above. No `ANTHROPIC_API_KEY` configured (defensive — the UI shouldn't call this when `aiEnabled:false`) → `503` "AI features are not configured".
 
 ### `PlanController` addition
 
@@ -101,7 +121,8 @@ frontend/src/
 
 ## Testing
 
-- `CommandInterpreterTest` — stubbed Claude client (no real network calls in the suite): a well-formed response parses into `InterpretedCommand`; a response naming an unknown block id is downgraded to not-understood; more than 5 events is downgraded to not-understood; a malformed/empty response is not-understood, not a crash; the prompt sent to the stub includes today's date and every block's id/title/kind/status/start/end.
+- `CommandInterpreterTest` — a fake `ClaudeCommandClient` (no real network calls in the suite, no Anthropic SDK types in the test): a well-formed response parses into `InterpretedCommand`; a response naming an unknown block id is downgraded to not-understood; more than 5 events is downgraded to not-understood; a malformed/empty response is not-understood, not a crash; a fake client that throws propagates the exception out of `CommandInterpreter` unchanged (it is not swallowed into "not understood" — the controller layer handles it, per `AssistantControllerTest` below); the prompt/context built for the fake client includes today's date and every block's id/title/kind/status/start/end.
+- `AssistantControllerTest` — mocked `CommandInterpreter` and `PlanService` (no fake client needed at this layer): confirms the controller distinguishes `CommandInterpreter` throwing (→ 502) from `CommandInterpreter` returning `understood:false` (→ 200 with a message), since both can look similar from inside the service but must not from the client's perspective.
 - `PlanServiceTest` additions — `simulateEvents` never persists (`getOrGenerate` immediately after shows the plan unchanged, same as before the call); `applyEvents` is atomic (a scripted second event that fails leaves the first event's would-be change unpersisted too).
 - `@WebMvcTest` for `AssistantController` — 200 understood (with a stubbed interpreter/service), 200 not-understood, 502 when the interpreter throws, 503 when no Claude bean exists.
 - `@WebMvcTest` for the new batch endpoint on `PlanController` — 200 with concatenated changes, 422 on an unknown block anywhere in the batch, 400 on a malformed request body.
