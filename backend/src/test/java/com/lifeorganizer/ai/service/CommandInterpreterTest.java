@@ -1,6 +1,9 @@
 package com.lifeorganizer.ai.service;
 
+import com.anthropic.errors.AnthropicException;
+import com.anthropic.errors.AnthropicIoException;
 import com.lifeorganizer.ai.client.ClaudeCommandClient;
+import com.lifeorganizer.ai.client.MalformedClaudeReplyException;
 import com.lifeorganizer.ai.model.ClaudeCommandResult;
 import com.lifeorganizer.ai.model.InterpretedCommand;
 import com.lifeorganizer.ai.model.ProposedEvent;
@@ -28,9 +31,6 @@ class CommandInterpreterTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 9, 22);
     private static final Block PADEL = new Block("padel-2026-09-22", TODAY, LocalTime.of(19, 0), LocalTime.of(20, 0),
         "Padel", BlockKind.GOAL, "health-padel", BlockStatus.PLANNED, 0, false, null);
-
-    private static final ProposedEvent NO_FIELDS = new ProposedEvent(ProposedEventType.MARK_DONE, Optional.empty(),
-        Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
 
     @SuppressWarnings("unchecked")
     private static CommandInterpreter interpreterFor(ClaudeCommandClient fake) {
@@ -119,6 +119,21 @@ class CommandInterpreterTest {
     }
 
     @Test
+    void downgradesToNotUnderstoodWhenAddAdhocTargetsADifferentDate() {
+        ProposedEvent futureAdhoc = new ProposedEvent(ProposedEventType.ADD_ADHOC, Optional.empty(), Optional.empty(),
+            Optional.of(TODAY.plusDays(1).toString()), Optional.of("Padel"), Optional.of("19:00"),
+            Optional.of("20:00"), Optional.empty());
+        ClaudeCommandResult reply = new ClaudeCommandResult(true, Optional.of("adding it tomorrow"), Optional.empty(),
+            List.of(futureAdhoc));
+        CommandInterpreter sut = interpreterFor((system, user) -> reply);
+
+        InterpretedCommand result = sut.interpret("add padel tomorrow", TODAY, List.of(PADEL));
+
+        assertThat(result.understood()).isFalse();
+        assertThat(result.message()).isEqualTo("I can only add events to today's plan.");
+    }
+
+    @Test
     void includesTodaysDateAndEveryBlockInThePromptGivenToTheClient() {
         List<String> capturedUserMessages = new ArrayList<>();
         ClaudeCommandClient fake = (system, user) -> {
@@ -146,5 +161,27 @@ class CommandInterpreterTest {
 
         assertThatThrownBy(() -> sut.interpret("x", TODAY, List.of(PADEL)))
             .isInstanceOf(AiNotConfiguredException.class);
+    }
+
+    @Test
+    void downgradesToNotUnderstoodWhenTheReplyIsMalformed() {
+        CommandInterpreter sut = interpreterFor((system, user) -> {
+            throw new MalformedClaudeReplyException("Claude returned no structured text content");
+        });
+
+        InterpretedCommand result = sut.interpret("do something", TODAY, List.of(PADEL));
+
+        assertThat(result.understood()).isFalse();
+        assertThat(result.message()).isEqualTo("I couldn't understand that.");
+    }
+
+    @Test
+    void propagatesAConnectivityFailureUnchanged() {
+        CommandInterpreter sut = interpreterFor((system, user) -> {
+            throw new AnthropicIoException("boom");
+        });
+
+        assertThatThrownBy(() -> sut.interpret("do something", TODAY, List.of(PADEL)))
+            .isInstanceOf(AnthropicException.class);
     }
 }

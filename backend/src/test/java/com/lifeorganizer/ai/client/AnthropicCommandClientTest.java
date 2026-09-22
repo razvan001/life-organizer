@@ -56,6 +56,6 @@ class AnthropicCommandClientTest {
 
         AnthropicCommandClient sut = new AnthropicCommandClient(client, "claude-sonnet-5");
 
-        assertThatThrownBy(() -> sut.interpret("s", "u")).isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> sut.interpret("s", "u")).isInstanceOf(MalformedClaudeReplyException.class);
     }
 }

@@ -30,6 +30,7 @@ import java.util.Optional;
 
 import static com.jayway.jsonpath.JsonPath.read;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -58,10 +59,14 @@ class AssistantApiEndToEndTest {
         }
     }
 
-    /** A fake standing in for the real Claude call: always cancels whatever block id it is asked about. */
+    /**
+     * A fake standing in for the real Claude call: cancels whatever block id it is asked about, unless
+     * the user's text asks to postpone it, in which case it proposes a postpone instead.
+     */
     @TestConfiguration
     static class FakeClaudeConfig {
         @Bean
+        @Primary
         ClaudeCommandClient fakeClaudeCommandClient() {
             return (system, user) -> {
                 String blockId = user.lines()
@@ -69,6 +74,11 @@ class AssistantApiEndToEndTest {
                     .map(line -> line.substring(5, line.indexOf(' ', 5)))
                     .findFirst()
                     .orElseThrow();
+                if (user.toLowerCase().contains("postpone")) {
+                    ProposedEvent postpone = new ProposedEvent(ProposedEventType.POSTPONE_BLOCK, Optional.of(blockId),
+                        Optional.of("tired"), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
+                    return new ClaudeCommandResult(true, Optional.of("Postponing it"), Optional.empty(), List.of(postpone));
+                }
                 ProposedEvent cancel = new ProposedEvent(ProposedEventType.CANCEL_BLOCK, Optional.of(blockId),
                     Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
                 return new ClaudeCommandResult(true, Optional.of("Cancelling it"), Optional.empty(), List.of(cancel));
@@ -117,5 +127,25 @@ class AssistantApiEndToEndTest {
 
         mvc.perform(post("/api/assistant/command").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"text\":\"anything else\"}"));
+    }
+
+    @Test
+    void proposingAPostponeAgainstAFreshWeekDoesNotFail() throws Exception {
+        String setupJson = "{\"goalsText\":" + jsonString(ExampleSetup.GOALS_TEXT)
+            + ",\"constraintsText\":" + jsonString(ExampleSetup.CONSTRAINTS_TEXT) + "}";
+        String parsed = mvc.perform(post("/api/setup/parse").contentType(MediaType.APPLICATION_JSON).content(setupJson))
+            .andReturn().getResponse().getContentAsString();
+        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(parsed))
+            .andExpect(status().isOk());
+
+        // Generate only today (Monday, per the fixed clock) - the bug is specifically about simulateEvents
+        // lazily generating a *different*, not-yet-generated day (the rest of the week, while looking for
+        // room to postpone into) inside what used to be a read-only transaction.
+        mvc.perform(get("/api/plan/today")).andExpect(status().isOk());
+
+        mvc.perform(post("/api/assistant/command").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"I'm tired, postpone it\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.understood").value(true));
     }
 }

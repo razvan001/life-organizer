@@ -84,8 +84,13 @@ public class PlanService {
     /**
      * Like {@link #applyEvent}, but for several events at once and without persisting anything - used
      * to build a preview/proposal. Events are chained: each one sees the plan as the previous one left it.
+     * Plain {@code @Transactional} (not read-only): {@link #loadDaysFor} can still lazily generate and
+     * persist a day the first time it is touched (e.g. a postpone looking at later days of the week for
+     * room) - that write is pre-existing, correct behavior, and a read-only transaction would make
+     * Postgres reject it. This method still never calls {@link PlanStore#applyChanges}, so it never
+     * persists a plan-event change.
      */
-    @Transactional(readOnly = true)
+    @Transactional
     public AppliedEvent simulateEvents(List<PlanEvent> events, LocalDate today) {
         Map<LocalDate, DayPlan> current = new LinkedHashMap<>();
         List<String> allChanges = new ArrayList<>();

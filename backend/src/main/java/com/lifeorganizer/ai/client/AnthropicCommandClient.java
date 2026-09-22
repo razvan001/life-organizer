@@ -36,6 +36,6 @@ public class AnthropicCommandClient implements ClaudeCommandClient {
             .flatMap(block -> block.text().stream())
             .findFirst()
             .map(text -> text.text())
-            .orElseThrow(() -> new IllegalStateException("Claude returned no structured text content"));
+            .orElseThrow(() -> new MalformedClaudeReplyException("Claude returned no structured text content"));
     }
 }

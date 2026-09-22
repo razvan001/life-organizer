@@ -5,6 +5,8 @@ interface Props {
   events: ProposedEventDto[]
   preview: TodayPlanResponse
   currentBlocks: BlockDto[]
+  /** The engine's own change/refusal messages (e.g. "No room this week to reschedule Gym"). */
+  changes: string[]
   busy: boolean
   onApply: () => void
   onReject: () => void
@@ -33,7 +35,7 @@ function diffLines(currentBlocks: BlockDto[], previewBlocks: BlockDto[]): string
 }
 
 /** The rationale plus a diff, shown after a command is understood. Apply resends the exact events. */
-export function ProposalCard({ rationale, preview, currentBlocks, busy, onApply, onReject }: Props) {
+export function ProposalCard({ rationale, preview, currentBlocks, changes, busy, onApply, onReject }: Props) {
   const lines = diffLines(currentBlocks, preview.blocks)
 
   return (
@@ -41,8 +43,15 @@ export function ProposalCard({ rationale, preview, currentBlocks, busy, onApply,
       <p>{rationale}</p>
       {lines.length > 0 && (
         <ul>
-          {lines.map((line) => (
-            <li key={line}>{line}</li>
+          {lines.map((line, index) => (
+            <li key={`${index}-${line}`}>{line}</li>
+          ))}
+        </ul>
+      )}
+      {changes.length > 0 && (
+        <ul>
+          {changes.map((change, index) => (
+            <li key={`${index}-${change}`}>{change}</li>
           ))}
         </ul>
       )}

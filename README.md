@@ -3,8 +3,9 @@
 A personal day planner. Paste your goals and your constraints once; the app builds today's plan,
 and re-plans when the day changes (mark done, postpone, cancel, add an event).
 
-**Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API)
-and the React UI are done. Later phases add the AI layer (LLM extraction, planning agent, RAG).
+**Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API),
+the React UI, and a natural-language assistant (Phase 2: turn a sentence into plan changes via Claude) are
+done. Later phases add more of the AI layer (a planning agent, RAG).
 
 ## What you need
 
@@ -91,11 +92,14 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | GET | `/api/setup` | the stored setup |
 | GET | `/api/plan/today` | today's blocks (generated on first request, then persisted) |
 | POST | `/api/plan/today/events` | `MARK_DONE`, `POSTPONE_BLOCK`, `CANCEL_BLOCK`, `SET_ENERGY`, `ADD_ADHOC` |
-| GET | `/api/config` | `{aiEnabled, ragEnabled}` (both false for now) |
+| GET | `/api/config` | `{aiEnabled, ragEnabled}` - `aiEnabled` reflects whether `ANTHROPIC_API_KEY` is configured; `ragEnabled` is false for now |
+| POST | `/api/assistant/command` | turn one sentence of free text into a proposed change (see "Assistant" below) |
+| POST | `/api/plan/today/events/batch` | apply several plan events at once (used by the assistant's Apply) |
 
 Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `deadline` is optional: send `deadline: null` (or omit it,
 or send an empty string) for no deadline. Errors are RFC 7807 `application/problem+json`
-(`404` no setup yet, `422` unknown block id, `400` invalid request).
+(`404` no setup yet, `422` unknown block id, `400` invalid request, `502` assistant unavailable, `503` AI
+features are not configured).
 
 ## Assistant (optional)
 

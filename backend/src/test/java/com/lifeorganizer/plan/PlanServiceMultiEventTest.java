@@ -7,6 +7,7 @@ import com.lifeorganizer.domain.DayPlan;
 import com.lifeorganizer.engine.CancelBlock;
 import com.lifeorganizer.engine.MarkDone;
 import com.lifeorganizer.engine.PlanEvent;
+import com.lifeorganizer.engine.PostponeBlock;
 import com.lifeorganizer.persistence.PlanStore;
 import com.lifeorganizer.persistence.SetupStore;
 import com.lifeorganizer.support.ExampleSetup;
@@ -81,6 +82,21 @@ class PlanServiceMultiEventTest {
         assertThat(block(simulated.today(), gymId).status()).isEqualTo(BlockStatus.DONE);
         assertThat(simulated.changes()).containsExactly("Marked done Gym");
         assertThat(block(planStore.findDay(MON).orElseThrow(), gymId).status()).isEqualTo(BlockStatus.PLANNED);
+    }
+
+    @Test
+    void simulateEventsCanGenerateAFutureDayWhilePostponing() {
+        saveExampleSetup();
+        DayPlan before = planService.getOrGenerate(MON);
+        String gymId = idOf(before, "Gym");
+
+        // Postponing looks at the rest of the week for room, which lazily generates and persists those
+        // days (see PlanService.loadDaysFor). Under a read-only transaction those inserts are rejected by
+        // Postgres; this call must complete normally and return a sensible AppliedEvent.
+        AppliedEvent simulated = planService.simulateEvents(List.of(new PostponeBlock(gymId, "tired")), MON);
+
+        assertThat(simulated.today()).isNotNull();
+        assertThat(simulated.changes()).isNotEmpty();
     }
 
     @Test

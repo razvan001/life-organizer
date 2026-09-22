@@ -1,9 +1,11 @@
 package com.lifeorganizer.ai.service;
 
 import com.lifeorganizer.ai.client.ClaudeCommandClient;
+import com.lifeorganizer.ai.client.MalformedClaudeReplyException;
 import com.lifeorganizer.ai.model.ClaudeCommandResult;
 import com.lifeorganizer.ai.model.InterpretedCommand;
 import com.lifeorganizer.ai.model.ProposedEvent;
+import com.lifeorganizer.ai.model.ProposedEventType;
 import com.lifeorganizer.domain.Block;
 import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.error.InvalidRequestException;
@@ -53,7 +55,12 @@ public class CommandInterpreter {
             throw new AiNotConfiguredException("AI features are not configured");
         }
 
-        ClaudeCommandResult raw = client.interpret(SYSTEM_PROMPT, userMessage(text, today, todaysBlocks));
+        ClaudeCommandResult raw;
+        try {
+            raw = client.interpret(SYSTEM_PROMPT, userMessage(text, today, todaysBlocks));
+        } catch (MalformedClaudeReplyException e) {
+            return InterpretedCommand.notUnderstood("I couldn't understand that.");
+        }
 
         if (!raw.understood()) {
             return InterpretedCommand.notUnderstood(raw.message().orElse("I couldn't understand that."));
@@ -72,6 +79,12 @@ public class CommandInterpreter {
             String blockId = proposed.blockId().orElse(null);
             if (blockId != null && !knownIds.contains(blockId)) {
                 return InterpretedCommand.notUnderstood("I couldn't find a matching block in today's plan.");
+            }
+            if (proposed.type() == ProposedEventType.ADD_ADHOC) {
+                String date = proposed.date().orElse(null);
+                if (date != null && !date.isBlank() && !date.equals(today.toString())) {
+                    return InterpretedCommand.notUnderstood("I can only add events to today's plan.");
+                }
             }
             ApplyEventRequest request = new ApplyEventRequest(proposed.type().name(), blockId,
                 proposed.reason().orElse(null), proposed.date().orElse(null), proposed.title().orElse(null),

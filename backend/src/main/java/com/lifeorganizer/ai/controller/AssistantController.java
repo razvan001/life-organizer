@@ -23,6 +23,8 @@ import java.util.List;
 @RequestMapping("/api/assistant")
 public class AssistantController {
 
+    private static final int MAX_TEXT_LENGTH = 2000;
+
     private final CommandInterpreter commandInterpreter;
     private final PlanService planService;
     private final Clock clock;
@@ -37,6 +39,9 @@ public class AssistantController {
     public CommandResponse command(@RequestBody CommandRequest request) {
         if (request.text() == null || request.text().isBlank()) {
             throw new InvalidRequestException("text is required");
+        }
+        if (request.text().length() > MAX_TEXT_LENGTH) {
+            throw new InvalidRequestException("text must be at most " + MAX_TEXT_LENGTH + " characters");
         }
         LocalDate today = LocalDate.now(clock);
         DayPlan plan = planService.getOrGenerate(today);

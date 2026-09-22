@@ -58,6 +58,7 @@ export function AssistantBox({ currentBlocks, busy: pageBusy, onApplied }: Props
   function reject() {
     setProposal(null)
     setText('')
+    setError(null)
   }
 
   const disabled = busy || pageBusy
@@ -71,6 +72,7 @@ export function AssistantBox({ currentBlocks, busy: pageBusy, onApplied }: Props
           id={inputId}
           type="text"
           value={text}
+          maxLength={2000}
           disabled={disabled}
           onChange={(event) => setText(event.target.value)}
           onKeyDown={(event) => {
@@ -89,6 +91,7 @@ export function AssistantBox({ currentBlocks, busy: pageBusy, onApplied }: Props
           events={proposal.events}
           preview={proposal.preview}
           currentBlocks={currentBlocks}
+          changes={proposal.changes}
           busy={disabled}
           onApply={apply}
           onReject={reject}

@@ -16,7 +16,7 @@ describe('ProposalCard', () => {
     render(
       <ProposalCard
         rationale="Padel is cancelled"
-        events={[]}
+        events={[]} changes={[]}
         preview={preview(CURRENT)}
         currentBlocks={CURRENT}
         busy={false}
@@ -34,7 +34,7 @@ describe('ProposalCard', () => {
     const changed = [makeBlock({ id: 'padel-1', title: 'Padel', status: 'CANCELLED', start: '19:00', end: '20:00' })]
 
     render(
-      <ProposalCard rationale="x" events={[]} preview={preview(changed)} currentBlocks={CURRENT}
+      <ProposalCard rationale="x" events={[]} changes={[]} preview={preview(changed)} currentBlocks={CURRENT}
         busy={false} onApply={vi.fn()} onReject={vi.fn()} />,
     )
 
@@ -43,11 +43,21 @@ describe('ProposalCard', () => {
 
   it('shows nothing changed when the preview matches the current plan', () => {
     render(
-      <ProposalCard rationale="x" events={[]} preview={preview(CURRENT)} currentBlocks={CURRENT}
+      <ProposalCard rationale="x" events={[]} changes={[]} preview={preview(CURRENT)} currentBlocks={CURRENT}
         busy={false} onApply={vi.fn()} onReject={vi.fn()} />,
     )
 
     expect(screen.queryByRole('listitem')).not.toBeInTheDocument()
+  })
+
+  it('shows the engine changes even when the preview matches the current plan (no diff line)', () => {
+    render(
+      <ProposalCard rationale="x" events={[]} changes={['No room this week to reschedule Gym']}
+        preview={preview(CURRENT)} currentBlocks={CURRENT} busy={false} onApply={vi.fn()} onReject={vi.fn()} />,
+    )
+
+    expect(screen.getByText('No room this week to reschedule Gym')).toBeInTheDocument()
+    expect(screen.queryByRole('listitem')).toBeInTheDocument()
   })
 
   it('calls onApply and onReject', async () => {
@@ -55,7 +65,7 @@ describe('ProposalCard', () => {
     const onApply = vi.fn()
     const onReject = vi.fn()
     render(
-      <ProposalCard rationale="x" events={[]} preview={preview(CURRENT)} currentBlocks={CURRENT}
+      <ProposalCard rationale="x" events={[]} changes={[]} preview={preview(CURRENT)} currentBlocks={CURRENT}
         busy={false} onApply={onApply} onReject={onReject} />,
     )
 
@@ -68,7 +78,7 @@ describe('ProposalCard', () => {
 
   it('disables both buttons while busy', () => {
     render(
-      <ProposalCard rationale="x" events={[]} preview={preview(CURRENT)} currentBlocks={CURRENT}
+      <ProposalCard rationale="x" events={[]} changes={[]} preview={preview(CURRENT)} currentBlocks={CURRENT}
         busy={true} onApply={vi.fn()} onReject={vi.fn()} />,
     )
 

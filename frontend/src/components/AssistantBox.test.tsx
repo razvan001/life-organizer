@@ -103,4 +103,10 @@ describe('AssistantBox', () => {
 
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled()
   })
+
+  it('caps the text input at 2000 characters', () => {
+    render(<AssistantBox currentBlocks={CURRENT} busy={false} onApplied={vi.fn()} />)
+
+    expect(screen.getByLabelText('Tell it what changed')).toHaveAttribute('maxLength', '2000')
+  })
 })

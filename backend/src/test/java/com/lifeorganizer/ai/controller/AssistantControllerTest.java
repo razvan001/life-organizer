@@ -102,6 +102,16 @@ class AssistantControllerTest {
     }
 
     @Test
+    void rejectsTextLongerThan2000Characters() throws Exception {
+        String tooLong = "a".repeat(2001);
+
+        mvc.perform(post("/api/assistant/command").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"" + tooLong + "\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.title").value("Invalid request"));
+    }
+
+    @Test
     void returns502WhenTheClientThrows() throws Exception {
         when(planService.getOrGenerate(TODAY)).thenReturn(emptyPlan());
         when(commandInterpreter.interpret(any(), eq(TODAY), any())).thenThrow(new AnthropicIoException("boom"));
