@@ -97,6 +97,21 @@ Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `deadline` is optional: send
 or send an empty string) for no deadline. Errors are RFC 7807 `application/problem+json`
 (`404` no setup yet, `422` unknown block id, `400` invalid request).
 
+## Assistant (optional)
+
+Set `ANTHROPIC_API_KEY` before starting the backend to turn on the natural-language command box at the
+bottom of Today:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...      # PowerShell: $env:ANTHROPIC_API_KEY="sk-ant-..."
+cd backend && ./mvnw spring-boot:run
+```
+
+Type a sentence like "padel got canceled" or "I'm tired, postpone the gym" and press Send. You'll see a
+one-line rationale and a list of what would change; press Apply to actually make the change, or Reject to
+discard it and try again. Without the key, `GET /api/config` reports `aiEnabled:false` and the box does not
+appear - every other feature is unaffected.
+
 ## How planning works
 
 - **Goals** get a priority (1-5); each weekly quota (e.g. "Learning: 5h/week") is split across its goals by
