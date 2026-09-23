@@ -1,6 +1,6 @@
 package com.lifeorganizer.config;
 
-import com.lifeorganizer.ai.client.ClaudeClientConfig;
+import com.lifeorganizer.ai.client.LlmClientConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
@@ -13,15 +13,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(ConfigController.class)
-@Import(ClaudeClientConfig.class)
-@TestPropertySource(properties = "ANTHROPIC_API_KEY=sk-ant-test-dummy-key")
+@Import(LlmClientConfig.class)
+@TestPropertySource(properties = "GROQ_API_KEY=gsk_test-dummy-key")
 class ConfigControllerAiEnabledTest {
 
     @Autowired
     MockMvc mvc;
 
     @Test
-    void reportsAiEnabledWhenAnAnthropicClientBeanExists() throws Exception {
+    void reportsAiEnabledWhenAnLlmCommandClientBeanExists() throws Exception {
         mvc.perform(get("/api/config"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.aiEnabled").value(true))

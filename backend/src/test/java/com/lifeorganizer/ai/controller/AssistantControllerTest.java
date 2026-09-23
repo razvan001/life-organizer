@@ -1,6 +1,5 @@
 package com.lifeorganizer.ai.controller;
 
-import com.anthropic.errors.AnthropicIoException;
 import com.lifeorganizer.ai.model.InterpretedCommand;
 import com.lifeorganizer.ai.service.CommandInterpreter;
 import com.lifeorganizer.config.GlobalExceptionHandler;
@@ -21,6 +20,7 @@ import org.springframework.context.annotation.Primary;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -114,7 +114,7 @@ class AssistantControllerTest {
     @Test
     void returns502WhenTheClientThrows() throws Exception {
         when(planService.getOrGenerate(TODAY)).thenReturn(emptyPlan());
-        when(commandInterpreter.interpret(any(), eq(TODAY), any())).thenThrow(new AnthropicIoException("boom"));
+        when(commandInterpreter.interpret(any(), eq(TODAY), any())).thenThrow(new ResourceAccessException("boom"));
 
         mvc.perform(post("/api/assistant/command").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"text\":\"anything\"}"))

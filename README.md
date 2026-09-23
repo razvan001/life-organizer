@@ -4,7 +4,7 @@ A personal day planner. Paste your goals and your constraints once; the app buil
 and re-plans when the day changes (mark done, postpone, cancel, add an event).
 
 **Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API),
-the React UI, and a natural-language assistant (Phase 2: turn a sentence into plan changes via Claude) are
+the React UI, and a natural-language assistant (Phase 2: turn a sentence into plan changes via Groq) are
 done. Later phases add more of the AI layer (a planning agent, RAG).
 
 ## What you need
@@ -92,7 +92,7 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | GET | `/api/setup` | the stored setup |
 | GET | `/api/plan/today` | today's blocks (generated on first request, then persisted) |
 | POST | `/api/plan/today/events` | `MARK_DONE`, `POSTPONE_BLOCK`, `CANCEL_BLOCK`, `SET_ENERGY`, `ADD_ADHOC` |
-| GET | `/api/config` | `{aiEnabled, ragEnabled}` - `aiEnabled` reflects whether `ANTHROPIC_API_KEY` is configured; `ragEnabled` is false for now |
+| GET | `/api/config` | `{aiEnabled, ragEnabled}` - `aiEnabled` reflects whether `GROQ_API_KEY` is configured; `ragEnabled` is false for now |
 | POST | `/api/assistant/command` | turn one sentence of free text into a proposed change (see "Assistant" below) |
 | POST | `/api/plan/today/events/batch` | apply several plan events at once (used by the assistant's Apply) |
 
@@ -103,18 +103,19 @@ features are not configured).
 
 ## Assistant (optional)
 
-Set `ANTHROPIC_API_KEY` before starting the backend to turn on the natural-language command box at the
-bottom of Today:
+Set `GROQ_API_KEY` before starting the backend to turn on the natural-language command box at the
+bottom of Today (get a free key at https://console.groq.com):
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...      # PowerShell: $env:ANTHROPIC_API_KEY="sk-ant-..."
+export GROQ_API_KEY=gsk_...      # PowerShell: $env:GROQ_API_KEY="gsk_..."
 cd backend && ./mvnw spring-boot:run
 ```
 
 Type a sentence like "padel got canceled" or "I'm tired, postpone the gym" and press Send. You'll see a
 one-line rationale and a list of what would change; press Apply to actually make the change, or Reject to
 discard it and try again. Without the key, `GET /api/config` reports `aiEnabled:false` and the box does not
-appear - every other feature is unaffected.
+appear - every other feature is unaffected. The model used is `openai/gpt-oss-120b` (configurable via the
+`app.ai.model` property).
 
 ## How planning works
 

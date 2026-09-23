@@ -1,6 +1,5 @@
 package com.lifeorganizer.ai.controller;
 
-import com.anthropic.errors.AnthropicException;
 import com.lifeorganizer.ai.dto.CommandRequest;
 import com.lifeorganizer.ai.dto.CommandResponse;
 import com.lifeorganizer.ai.model.InterpretedCommand;
@@ -14,6 +13,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.RestClientException;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -49,7 +49,7 @@ public class AssistantController {
         InterpretedCommand interpreted;
         try {
             interpreted = commandInterpreter.interpret(request.text(), today, plan.blocksInOrder());
-        } catch (AnthropicException e) {
+        } catch (RestClientException e) {
             throw new AssistantUnavailableException("The assistant is unavailable right now", e);
         }
 

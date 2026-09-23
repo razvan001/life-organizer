@@ -1,7 +1,7 @@
 package com.lifeorganizer;
 
-import com.lifeorganizer.ai.client.ClaudeCommandClient;
-import com.lifeorganizer.ai.model.ClaudeCommandResult;
+import com.lifeorganizer.ai.client.LlmCommandClient;
+import com.lifeorganizer.ai.model.LlmCommandResult;
 import com.lifeorganizer.ai.model.ProposedEvent;
 import com.lifeorganizer.ai.model.ProposedEventType;
 import com.lifeorganizer.support.ExampleSetup;
@@ -26,7 +26,6 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Optional;
 
 import static com.jayway.jsonpath.JsonPath.read;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -37,7 +36,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Exercises the full HTTP flow (propose, then apply) with a fake {@link ClaudeCommandClient} standing
+ * Exercises the full HTTP flow (propose, then apply) with a fake {@link LlmCommandClient} standing
  * in for a real API call - no network, no API key needed.
  */
 @SpringBootTest
@@ -60,14 +59,14 @@ class AssistantApiEndToEndTest {
     }
 
     /**
-     * A fake standing in for the real Claude call: cancels whatever block id it is asked about, unless
+     * A fake standing in for the real Groq call: cancels whatever block id it is asked about, unless
      * the user's text asks to postpone it, in which case it proposes a postpone instead.
      */
     @TestConfiguration
     static class FakeClaudeConfig {
         @Bean
         @Primary
-        ClaudeCommandClient fakeClaudeCommandClient() {
+        LlmCommandClient fakeLlmCommandClient() {
             return (system, user) -> {
                 String blockId = user.lines()
                     .filter(line -> line.startsWith("- id="))
@@ -75,13 +74,13 @@ class AssistantApiEndToEndTest {
                     .findFirst()
                     .orElseThrow();
                 if (user.toLowerCase().contains("postpone")) {
-                    ProposedEvent postpone = new ProposedEvent(ProposedEventType.POSTPONE_BLOCK, Optional.of(blockId),
-                        Optional.of("tired"), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-                    return new ClaudeCommandResult(true, Optional.of("Postponing it"), Optional.empty(), List.of(postpone));
+                    ProposedEvent postpone = new ProposedEvent(ProposedEventType.POSTPONE_BLOCK, blockId,
+                        "tired", null, null, null, null, null);
+                    return new LlmCommandResult(true, "Postponing it", null, List.of(postpone));
                 }
-                ProposedEvent cancel = new ProposedEvent(ProposedEventType.CANCEL_BLOCK, Optional.of(blockId),
-                    Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-                return new ClaudeCommandResult(true, Optional.of("Cancelling it"), Optional.empty(), List.of(cancel));
+                ProposedEvent cancel = new ProposedEvent(ProposedEventType.CANCEL_BLOCK, blockId,
+                    null, null, null, null, null, null);
+                return new LlmCommandResult(true, "Cancelling it", null, List.of(cancel));
             };
         }
     }
@@ -118,7 +117,7 @@ class AssistantApiEndToEndTest {
 
         List<?> events = read(proposeResponse, "$.events");
         assertThat(events).hasSize(1);
-        String applyBody = "{\"events\":" + com.fasterxml.jackson.databind.json.JsonMapper.builder().build()
+        String applyBody = "{\"events\":" + tools.jackson.databind.json.JsonMapper.builder().build()
             .writeValueAsString(events) + "}";
 
         mvc.perform(post("/api/plan/today/events/batch").contentType(MediaType.APPLICATION_JSON).content(applyBody))

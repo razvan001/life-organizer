@@ -1,8 +1,8 @@
 package com.lifeorganizer.ai.service;
 
-import com.lifeorganizer.ai.client.ClaudeCommandClient;
-import com.lifeorganizer.ai.client.MalformedClaudeReplyException;
-import com.lifeorganizer.ai.model.ClaudeCommandResult;
+import com.lifeorganizer.ai.client.LlmCommandClient;
+import com.lifeorganizer.ai.client.MalformedLlmReplyException;
+import com.lifeorganizer.ai.model.LlmCommandResult;
 import com.lifeorganizer.ai.model.InterpretedCommand;
 import com.lifeorganizer.ai.model.ProposedEvent;
 import com.lifeorganizer.ai.model.ProposedEventType;
@@ -43,27 +43,27 @@ public class CommandInterpreter {
         message instead of guessing. Propose at most 5 events. Keep rationale to one short sentence.
         """;
 
-    private final ObjectProvider<ClaudeCommandClient> clientProvider;
+    private final ObjectProvider<LlmCommandClient> clientProvider;
 
-    public CommandInterpreter(ObjectProvider<ClaudeCommandClient> clientProvider) {
+    public CommandInterpreter(ObjectProvider<LlmCommandClient> clientProvider) {
         this.clientProvider = clientProvider;
     }
 
     public InterpretedCommand interpret(String text, LocalDate today, List<Block> todaysBlocks) {
-        ClaudeCommandClient client = clientProvider.getIfAvailable();
+        LlmCommandClient client = clientProvider.getIfAvailable();
         if (client == null) {
             throw new AiNotConfiguredException("AI features are not configured");
         }
 
-        ClaudeCommandResult raw;
+        LlmCommandResult raw;
         try {
             raw = client.interpret(SYSTEM_PROMPT, userMessage(text, today, todaysBlocks));
-        } catch (MalformedClaudeReplyException e) {
+        } catch (MalformedLlmReplyException e) {
             return InterpretedCommand.notUnderstood("I couldn't understand that.");
         }
 
         if (!raw.understood()) {
-            return InterpretedCommand.notUnderstood(raw.message().orElse("I couldn't understand that."));
+            return InterpretedCommand.notUnderstood(raw.message() != null ? raw.message() : "I couldn't understand that.");
         }
         if (raw.events().isEmpty() || raw.events().size() > MAX_EVENTS) {
             return InterpretedCommand.notUnderstood("That would need too many changes at once, or none at all.");
@@ -76,19 +76,19 @@ public class CommandInterpreter {
 
         List<ApplyEventRequest> events = new ArrayList<>();
         for (ProposedEvent proposed : raw.events()) {
-            String blockId = proposed.blockId().orElse(null);
+            String blockId = proposed.blockId();
             if (blockId != null && !knownIds.contains(blockId)) {
                 return InterpretedCommand.notUnderstood("I couldn't find a matching block in today's plan.");
             }
             if (proposed.type() == ProposedEventType.ADD_ADHOC) {
-                String date = proposed.date().orElse(null);
+                String date = proposed.date();
                 if (date != null && !date.isBlank() && !date.equals(today.toString())) {
                     return InterpretedCommand.notUnderstood("I can only add events to today's plan.");
                 }
             }
             ApplyEventRequest request = new ApplyEventRequest(proposed.type().name(), blockId,
-                proposed.reason().orElse(null), proposed.date().orElse(null), proposed.title().orElse(null),
-                proposed.start().orElse(null), proposed.end().orElse(null), proposed.energy().orElse(null));
+                proposed.reason(), proposed.date(), proposed.title(),
+                proposed.start(), proposed.end(), proposed.energy());
             try {
                 request.toEvent(today);
             } catch (InvalidRequestException e) {
@@ -97,7 +97,7 @@ public class CommandInterpreter {
             events.add(request);
         }
 
-        return InterpretedCommand.understood(raw.rationale().orElse(""), events);
+        return InterpretedCommand.understood(raw.rationale() != null ? raw.rationale() : "", events);
     }
 
     private String userMessage(String text, LocalDate today, List<Block> todaysBlocks) {

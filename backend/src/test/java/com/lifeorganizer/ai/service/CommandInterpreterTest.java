@@ -1,10 +1,8 @@
 package com.lifeorganizer.ai.service;
 
-import com.anthropic.errors.AnthropicException;
-import com.anthropic.errors.AnthropicIoException;
-import com.lifeorganizer.ai.client.ClaudeCommandClient;
-import com.lifeorganizer.ai.client.MalformedClaudeReplyException;
-import com.lifeorganizer.ai.model.ClaudeCommandResult;
+import com.lifeorganizer.ai.client.LlmCommandClient;
+import com.lifeorganizer.ai.client.MalformedLlmReplyException;
+import com.lifeorganizer.ai.model.LlmCommandResult;
 import com.lifeorganizer.ai.model.InterpretedCommand;
 import com.lifeorganizer.ai.model.ProposedEvent;
 import com.lifeorganizer.ai.model.ProposedEventType;
@@ -14,12 +12,13 @@ import com.lifeorganizer.domain.BlockStatus;
 import com.lifeorganizer.error.AiNotConfiguredException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.web.client.ResourceAccessException;
+import org.springframework.web.client.RestClientException;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,17 +32,17 @@ class CommandInterpreterTest {
         "Padel", BlockKind.GOAL, "health-padel", BlockStatus.PLANNED, 0, false, null);
 
     @SuppressWarnings("unchecked")
-    private static CommandInterpreter interpreterFor(ClaudeCommandClient fake) {
-        ObjectProvider<ClaudeCommandClient> provider = mock(ObjectProvider.class);
+    private static CommandInterpreter interpreterFor(LlmCommandClient fake) {
+        ObjectProvider<LlmCommandClient> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(fake);
         return new CommandInterpreter(provider);
     }
 
     @Test
     void turnsAWellFormedReplyIntoAnUnderstoodCommand() {
-        ProposedEvent cancel = new ProposedEvent(ProposedEventType.CANCEL_BLOCK, Optional.of("padel-2026-09-22"),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-        ClaudeCommandResult reply = new ClaudeCommandResult(true, Optional.of("Padel is cancelled"), Optional.empty(),
+        ProposedEvent cancel = new ProposedEvent(ProposedEventType.CANCEL_BLOCK, "padel-2026-09-22",
+            null, null, null, null, null, null);
+        LlmCommandResult reply = new LlmCommandResult(true, "Padel is cancelled", null,
             List.of(cancel));
         CommandInterpreter sut = interpreterFor((system, user) -> reply);
 
@@ -58,8 +57,8 @@ class CommandInterpreterTest {
 
     @Test
     void downgradesToNotUnderstoodWhenTheModelSaysSo() {
-        ClaudeCommandResult reply = new ClaudeCommandResult(false, Optional.empty(),
-            Optional.of("I couldn't find a matching block"), List.of());
+        LlmCommandResult reply = new LlmCommandResult(false, null,
+            "I couldn't find a matching block", List.of());
         CommandInterpreter sut = interpreterFor((system, user) -> reply);
 
         InterpretedCommand result = sut.interpret("do something vague", TODAY, List.of(PADEL));
@@ -70,9 +69,9 @@ class CommandInterpreterTest {
 
     @Test
     void downgradesToNotUnderstoodWhenTheBlockIdIsNotInTodaysPlan() {
-        ProposedEvent cancel = new ProposedEvent(ProposedEventType.CANCEL_BLOCK, Optional.of("no-such-block"),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-        ClaudeCommandResult reply = new ClaudeCommandResult(true, Optional.of("Cancelling it"), Optional.empty(),
+        ProposedEvent cancel = new ProposedEvent(ProposedEventType.CANCEL_BLOCK, "no-such-block",
+            null, null, null, null, null, null);
+        LlmCommandResult reply = new LlmCommandResult(true, "Cancelling it", null,
             List.of(cancel));
         CommandInterpreter sut = interpreterFor((system, user) -> reply);
 
@@ -83,9 +82,9 @@ class CommandInterpreterTest {
 
     @Test
     void downgradesToNotUnderstoodWhenThereAreMoreThanFiveEvents() {
-        ProposedEvent event = new ProposedEvent(ProposedEventType.MARK_DONE, Optional.of("padel-2026-09-22"),
-            Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty(), Optional.empty());
-        ClaudeCommandResult reply = new ClaudeCommandResult(true, Optional.of("many things"), Optional.empty(),
+        ProposedEvent event = new ProposedEvent(ProposedEventType.MARK_DONE, "padel-2026-09-22",
+            null, null, null, null, null, null);
+        LlmCommandResult reply = new LlmCommandResult(true, "many things", null,
             List.of(event, event, event, event, event, event));
         CommandInterpreter sut = interpreterFor((system, user) -> reply);
 
@@ -96,7 +95,7 @@ class CommandInterpreterTest {
 
     @Test
     void downgradesToNotUnderstoodWhenThereAreNoEventsAtAll() {
-        ClaudeCommandResult reply = new ClaudeCommandResult(true, Optional.of("nothing to do"), Optional.empty(), List.of());
+        LlmCommandResult reply = new LlmCommandResult(true, "nothing to do", null, List.of());
         CommandInterpreter sut = interpreterFor((system, user) -> reply);
 
         InterpretedCommand result = sut.interpret("hmm", TODAY, List.of(PADEL));
@@ -107,9 +106,9 @@ class CommandInterpreterTest {
     @Test
     void downgradesToNotUnderstoodWhenAnEventFailsEngineValidation() {
         // ADD_ADHOC with no title - ApplyEventRequest.toEvent rejects it
-        ProposedEvent badAdhoc = new ProposedEvent(ProposedEventType.ADD_ADHOC, Optional.empty(), Optional.empty(),
-            Optional.of("2026-09-22"), Optional.empty(), Optional.of("19:00"), Optional.of("20:00"), Optional.empty());
-        ClaudeCommandResult reply = new ClaudeCommandResult(true, Optional.of("adding it"), Optional.empty(),
+        ProposedEvent badAdhoc = new ProposedEvent(ProposedEventType.ADD_ADHOC, null, null,
+            "2026-09-22", null, "19:00", "20:00", null);
+        LlmCommandResult reply = new LlmCommandResult(true, "adding it", null,
             List.of(badAdhoc));
         CommandInterpreter sut = interpreterFor((system, user) -> reply);
 
@@ -120,10 +119,10 @@ class CommandInterpreterTest {
 
     @Test
     void downgradesToNotUnderstoodWhenAddAdhocTargetsADifferentDate() {
-        ProposedEvent futureAdhoc = new ProposedEvent(ProposedEventType.ADD_ADHOC, Optional.empty(), Optional.empty(),
-            Optional.of(TODAY.plusDays(1).toString()), Optional.of("Padel"), Optional.of("19:00"),
-            Optional.of("20:00"), Optional.empty());
-        ClaudeCommandResult reply = new ClaudeCommandResult(true, Optional.of("adding it tomorrow"), Optional.empty(),
+        ProposedEvent futureAdhoc = new ProposedEvent(ProposedEventType.ADD_ADHOC, null, null,
+            TODAY.plusDays(1).toString(), "Padel", "19:00",
+            "20:00", null);
+        LlmCommandResult reply = new LlmCommandResult(true, "adding it tomorrow", null,
             List.of(futureAdhoc));
         CommandInterpreter sut = interpreterFor((system, user) -> reply);
 
@@ -136,9 +135,9 @@ class CommandInterpreterTest {
     @Test
     void includesTodaysDateAndEveryBlockInThePromptGivenToTheClient() {
         List<String> capturedUserMessages = new ArrayList<>();
-        ClaudeCommandClient fake = (system, user) -> {
+        LlmCommandClient fake = (system, user) -> {
             capturedUserMessages.add(user);
-            return new ClaudeCommandResult(false, Optional.empty(), Optional.of("n/a"), List.of());
+            return new LlmCommandResult(false, null, "n/a", List.of());
         };
         CommandInterpreter sut = interpreterFor(fake);
 
@@ -155,7 +154,7 @@ class CommandInterpreterTest {
     @SuppressWarnings("unchecked")
     @Test
     void throwsAiNotConfiguredWhenNoClientIsAvailable() {
-        ObjectProvider<ClaudeCommandClient> provider = mock(ObjectProvider.class);
+        ObjectProvider<LlmCommandClient> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(null);
         CommandInterpreter sut = new CommandInterpreter(provider);
 
@@ -166,7 +165,7 @@ class CommandInterpreterTest {
     @Test
     void downgradesToNotUnderstoodWhenTheReplyIsMalformed() {
         CommandInterpreter sut = interpreterFor((system, user) -> {
-            throw new MalformedClaudeReplyException("Claude returned no structured text content");
+            throw new MalformedLlmReplyException("Groq returned no usable content");
         });
 
         InterpretedCommand result = sut.interpret("do something", TODAY, List.of(PADEL));
@@ -178,10 +177,10 @@ class CommandInterpreterTest {
     @Test
     void propagatesAConnectivityFailureUnchanged() {
         CommandInterpreter sut = interpreterFor((system, user) -> {
-            throw new AnthropicIoException("boom");
+            throw new ResourceAccessException("boom");
         });
 
         assertThatThrownBy(() -> sut.interpret("do something", TODAY, List.of(PADEL)))
-            .isInstanceOf(AnthropicException.class);
+            .isInstanceOf(RestClientException.class);
     }
 }

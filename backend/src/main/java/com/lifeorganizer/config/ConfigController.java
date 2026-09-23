@@ -1,6 +1,6 @@
 package com.lifeorganizer.config;
 
-import com.anthropic.client.AnthropicClient;
+import com.lifeorganizer.ai.client.LlmCommandClient;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,14 +14,14 @@ public class ConfigController {
     public record ConfigResponse(boolean aiEnabled, boolean ragEnabled) {
     }
 
-    private final ObjectProvider<AnthropicClient> anthropicClient;
+    private final ObjectProvider<LlmCommandClient> llmCommandClient;
 
-    public ConfigController(ObjectProvider<AnthropicClient> anthropicClient) {
-        this.anthropicClient = anthropicClient;
+    public ConfigController(ObjectProvider<LlmCommandClient> llmCommandClient) {
+        this.llmCommandClient = llmCommandClient;
     }
 
     @GetMapping
     public ConfigResponse config() {
-        return new ConfigResponse(anthropicClient.getIfAvailable() != null, false);
+        return new ConfigResponse(llmCommandClient.getIfAvailable() != null, false);
     }
 }
