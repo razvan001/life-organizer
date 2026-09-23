@@ -10,6 +10,8 @@ import com.lifeorganizer.domain.Block;
 import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.error.InvalidRequestException;
 import com.lifeorganizer.plan.dto.ApplyEventRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -26,6 +28,7 @@ import java.util.Set;
 @Service
 public class CommandInterpreter {
 
+    private static final Logger log = LoggerFactory.getLogger(CommandInterpreter.class);
     private static final int MAX_EVENTS = 5;
 
     private static final String SYSTEM_PROMPT = """
@@ -50,6 +53,7 @@ public class CommandInterpreter {
     }
 
     public InterpretedCommand interpret(String text, LocalDate today, List<Block> todaysBlocks) {
+        log.info("Interpreting command for {}: \"{}\"", today, text);
         LlmCommandClient client = clientProvider.getIfAvailable();
         if (client == null) {
             throw new AiNotConfiguredException("AI features are not configured");
@@ -59,13 +63,17 @@ public class CommandInterpreter {
         try {
             raw = client.interpret(SYSTEM_PROMPT, userMessage(text, today, todaysBlocks));
         } catch (MalformedLlmReplyException e) {
+            log.warn("Downgrading to not-understood: malformed reply ({})", e.getMessage());
             return InterpretedCommand.notUnderstood("I couldn't understand that.");
         }
 
         if (!raw.understood()) {
+            log.info("Model reported not understood: {}", raw.message());
             return InterpretedCommand.notUnderstood(raw.message() != null ? raw.message() : "I couldn't understand that.");
         }
         if (raw.events().isEmpty() || raw.events().size() > MAX_EVENTS) {
+            log.warn("Downgrading to not-understood: {} events proposed (0 or more than {} not allowed)",
+                raw.events().size(), MAX_EVENTS);
             return InterpretedCommand.notUnderstood("That would need too many changes at once, or none at all.");
         }
 
@@ -78,11 +86,13 @@ public class CommandInterpreter {
         for (ProposedEvent proposed : raw.events()) {
             String blockId = proposed.blockId();
             if (blockId != null && !knownIds.contains(blockId)) {
+                log.warn("Downgrading to not-understood: unknown blockId '{}' (known ids: {})", blockId, knownIds);
                 return InterpretedCommand.notUnderstood("I couldn't find a matching block in today's plan.");
             }
             if (proposed.type() == ProposedEventType.ADD_ADHOC) {
                 String date = proposed.date();
                 if (date != null && !date.isBlank() && !date.equals(today.toString())) {
+                    log.warn("Downgrading to not-understood: ADD_ADHOC date '{}' is not today ({})", date, today);
                     return InterpretedCommand.notUnderstood("I can only add events to today's plan.");
                 }
             }
@@ -92,11 +102,13 @@ public class CommandInterpreter {
             try {
                 request.toEvent(today);
             } catch (InvalidRequestException e) {
+                log.warn("Downgrading to not-understood: engine rejected the event ({})", e.getMessage());
                 return InterpretedCommand.notUnderstood("I couldn't turn that into a valid change: " + e.getMessage());
             }
             events.add(request);
         }
 
+        log.info("Understood: {} event(s) proposed", events.size());
         return InterpretedCommand.understood(raw.rationale() != null ? raw.rationale() : "", events);
     }
 

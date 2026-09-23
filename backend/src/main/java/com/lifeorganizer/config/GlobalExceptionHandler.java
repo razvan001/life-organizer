@@ -51,11 +51,13 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
 
     @ExceptionHandler(AssistantUnavailableException.class)
     public ProblemDetail assistantUnavailable(AssistantUnavailableException e) {
+        log.warn("Assistant unavailable: {}", e.getMessage(), e.getCause());
         return problem(502, "Assistant unavailable", e.getMessage());
     }
 
     @ExceptionHandler(AiNotConfiguredException.class)
     public ProblemDetail aiNotConfigured(AiNotConfiguredException e) {
+        log.debug("AI endpoint called with no key configured: {}", e.getMessage());
         return problem(503, "AI features are not configured", e.getMessage());
     }
 

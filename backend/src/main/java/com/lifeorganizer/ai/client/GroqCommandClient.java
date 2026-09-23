@@ -1,8 +1,11 @@
 package com.lifeorganizer.ai.client;
 
 import com.lifeorganizer.ai.model.LlmCommandResult;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.LinkedHashMap;
@@ -11,6 +14,8 @@ import java.util.Map;
 
 /** Wraps the one Groq (OpenAI-compatible) chat-completions call this feature needs. */
 public class GroqCommandClient implements LlmCommandClient {
+
+    private static final Logger log = LoggerFactory.getLogger(GroqCommandClient.class);
 
     // Strict JSON Schema for LlmCommandResult/ProposedEvent, hand-written since there is no SDK to
     // generate it from the Java types. Every property must be listed under "required" (Groq/OpenAI
@@ -78,26 +83,40 @@ public class GroqCommandClient implements LlmCommandClient {
             Map.of("role", "user", "content", userMessage)));
         body.put("response_format", responseFormat);
 
+        log.debug("Calling Groq model={} userMessage.length={}", model, userMessage.length());
+
         // RestClient's default behaviour throws RestClientResponseException for any non-2xx status,
         // and ResourceAccessException for network/timeout failures - both are RestClientException
         // subtypes, which is exactly the "connectivity failure" signal CommandInterpreter/AssistantController
-        // let propagate untouched (never caught here).
-        GroqChatResponse response = restClient.post()
-            .contentType(MediaType.APPLICATION_JSON)
-            .body(body)
-            .retrieve()
-            .body(GroqChatResponse.class);
+        // let propagate untouched (never caught here, only logged before it propagates).
+        GroqChatResponse response;
+        try {
+            response = restClient.post()
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(GroqChatResponse.class);
+        } catch (RestClientException e) {
+            log.warn("Groq call failed: {}", e.getMessage());
+            throw e;
+        }
 
         if (response == null || response.choices() == null || response.choices().isEmpty()) {
+            log.warn("Groq returned no choices: {}", response);
             throw new MalformedLlmReplyException("Groq returned no choices");
         }
         String content = response.choices().get(0).message().content();
         if (content == null || content.isBlank()) {
+            log.warn("Groq returned an empty message");
             throw new MalformedLlmReplyException("Groq returned no message content");
         }
+        log.debug("Groq raw reply content: {}", content);
         try {
-            return jsonMapper.readValue(content, LlmCommandResult.class);
+            LlmCommandResult result = jsonMapper.readValue(content, LlmCommandResult.class);
+            log.debug("Groq reply parsed: understood={} events={}", result.understood(), result.events().size());
+            return result;
         } catch (RuntimeException e) {
+            log.warn("Could not parse Groq's reply as the expected JSON shape: {}", content, e);
             throw new MalformedLlmReplyException("Could not parse Groq's reply as the expected JSON shape");
         }
     }
