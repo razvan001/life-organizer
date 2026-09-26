@@ -26,4 +26,15 @@ public class LlmClientConfig {
             .build();
         return new GroqCommandClient(restClient, model);
     }
+
+    @Bean
+    @ConditionalOnProperty(name = "GROQ_API_KEY")
+    public SetupExtractionClient setupExtractionClient(@Value("${GROQ_API_KEY}") String apiKey,
+                                                       @Value("${app.ai.model:openai/gpt-oss-120b}") String model) {
+        RestClient restClient = RestClient.builder()
+            .baseUrl(GROQ_ENDPOINT)
+            .defaultHeader("Authorization", "Bearer " + apiKey)
+            .build();
+        return new GroqExtractionClient(restClient, model);
+    }
 }

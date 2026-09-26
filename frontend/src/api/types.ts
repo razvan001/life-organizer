@@ -49,6 +49,10 @@ export interface SetupParseRequest {
   constraintsText: string
 }
 
+export interface SetupExtractionRequest {
+  text: string
+}
+
 export interface SetupParseResponse extends SetupPayload {
   warnings: string[]
 }

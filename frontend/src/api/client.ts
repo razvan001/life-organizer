@@ -6,6 +6,7 @@ import type {
   CommandResponse,
   ConfigResponse,
   PlanEventRequest,
+  SetupExtractionRequest,
   SetupParseRequest,
   SetupParseResponse,
   SetupPayload,
@@ -53,6 +54,7 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<T>
 /** The one place that knows the URLs. Paths are relative: Vite proxies /api to the backend. */
 export const api = {
   parseSetup: (request: SetupParseRequest) => send<SetupParseResponse>('POST', '/api/setup/parse', request),
+  extractSetup: (request: SetupExtractionRequest) => send<SetupParseResponse>('POST', '/api/setup/extract', request),
   getSetup: () => send<SetupPayload>('GET', '/api/setup'),
   saveSetup: (setup: SetupPayload) => send<SetupPayload>('PUT', '/api/setup', setup),
   getToday: () => send<TodayPlanResponse>('GET', '/api/plan/today'),

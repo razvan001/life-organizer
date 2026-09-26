@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, errorMessage } from '../api/client'
+import { useApi } from '../api/useApi'
 import type { SetupParseResponse } from '../api/types'
 import { SetupPreview } from '../components/SetupPreview'
 import { EXAMPLE_CONSTRAINTS, EXAMPLE_GOALS } from '../setup/example'
@@ -11,6 +12,8 @@ export function SetupPage() {
   const [constraintsText, setConstraintsText] = useState(EXAMPLE_CONSTRAINTS)
   const [preview, setPreview] = useState<SetupParseResponse | null>(null)
   const [previewTitle, setPreviewTitle] = useState('')
+  const { data: config } = useApi(api.getConfig)
+  const [dumpText, setDumpText] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   // True when a text box was edited after the last Parse: the preview no longer matches the text.
@@ -86,6 +89,21 @@ export function SetupPage() {
     }
   }
 
+  // A third way to fill the preview, next to Parse and the saved setup. Nothing is saved until Save.
+  async function extract() {
+    setBusy(true)
+    setError(null)
+    try {
+      setPreview(await api.extractSetup({ text: dumpText }))
+      setPreviewTitle('Extracted from your text (not saved yet)')
+      setStale(false)
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
   async function save() {
     if (!preview) return
     setBusy(true)
@@ -132,6 +150,22 @@ export function SetupPage() {
       <button type="button" disabled={busy} onClick={useExample}>
         Use example text
       </button>
+
+      {config?.aiEnabled && (
+        <div className="field">
+          <label htmlFor="brain-dump">Or describe your goals and constraints in your own words</label>
+          <textarea
+            id="brain-dump"
+            rows={6}
+            maxLength={4000}
+            value={dumpText}
+            onChange={(event) => setDumpText(event.target.value)}
+          />
+          <button type="button" disabled={busy || dumpText.trim() === ''} onClick={extract}>
+            Extract goals and constraints
+          </button>
+        </div>
+      )}
       {error && <p role="alert">{error}</p>}
 
       {preview && (

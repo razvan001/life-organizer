@@ -26,7 +26,7 @@ import java.util.function.Supplier;
 /** Converts between the Phase 1a domain records and the string-only setup DTOs. */
 public final class SetupDtoMapper {
 
-    private static final int MAX_TEXT_LENGTH = 255;
+    static final int MAX_TEXT_LENGTH = 255;
 
     private SetupDtoMapper() {
     }

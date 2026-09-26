@@ -245,10 +245,13 @@ describe('SetupPage', () => {
   })
 
   it('keeps the example and an enabled Parse on a first visit, even after the setup answer arrived', async () => {
-    const fetchMock = mockApi({ 'GET /api/setup': () => jsonResponse(EMPTY_SETUP) })
+    const fetchMock = mockApi({
+      'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
+    })
 
     renderSetup()
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1))
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     await act(async () => {})
 
     expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
@@ -273,7 +276,10 @@ describe('SetupPage', () => {
   it('puts the example back into the boxes on a return visit without calling the backend', async () => {
     const user = userEvent.setup()
     const { warnings: _warnings, ...saved } = PARSED
-    const fetchMock = mockApi({ 'GET /api/setup': () => jsonResponse(saved) })
+    const fetchMock = mockApi({
+      'GET /api/setup': () => jsonResponse(saved),
+      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
+    })
     renderSetup()
     await screen.findByText('Saved setup')
     expect(screen.getByLabelText('Goals')).toHaveValue('')
@@ -283,8 +289,7 @@ describe('SetupPage', () => {
     expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
     expect((screen.getByLabelText('Constraints (one per line)') as HTMLTextAreaElement).value).toContain('Work:')
     expect(screen.getByRole('button', { name: 'Parse' })).toBeEnabled()
-    expect(fetchMock).toHaveBeenCalledTimes(1)
-    expect(fetchMock.mock.calls[0][0]).toBe('/api/setup')
+    expect(fetchMock.mock.calls.map(([path]) => path).sort()).toEqual(['/api/config', '/api/setup'])
   })
 
   it('marks a shown preview stale until Parse is pressed again', async () => {
@@ -320,5 +325,57 @@ describe('SetupPage', () => {
     await user.click(screen.getByRole('button', { name: 'Use example text' }))
 
     expect(goals.value).toBe(EXAMPLE_GOALS)
+  })
+
+  describe('brain dump', () => {
+    const AI_ON = { aiEnabled: true, ragEnabled: false }
+
+    it('is hidden when the assistant is not configured', async () => {
+      mockApi({
+        'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+        'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
+      })
+
+      renderSetup()
+
+      await waitFor(() => expect(screen.getByLabelText('Goals')).toBeInTheDocument())
+      expect(screen.queryByRole('button', { name: 'Extract goals and constraints' })).not.toBeInTheDocument()
+    })
+
+    it('extracts into the preview and sends the text', async () => {
+      const user = userEvent.setup()
+      const fetchMock = mockApi({
+        'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+        'GET /api/config': () => jsonResponse(AI_ON),
+        'POST /api/setup/extract': () => jsonResponse(PARSED),
+      })
+      renderSetup()
+      const button = await screen.findByRole('button', { name: 'Extract goals and constraints' })
+      expect(button).toBeDisabled()
+
+      await user.type(screen.getByLabelText(/in your own words/), 'I want to gym four times a week')
+      await user.click(button)
+
+      expect(await screen.findByText('Extracted from your text (not saved yet)')).toBeInTheDocument()
+      expect(screen.getByText('Claude certification')).toBeInTheDocument()
+      const call = fetchMock.mock.calls.find(([path]) => path === '/api/setup/extract')!
+      expect(JSON.parse(call[1]!.body as string)).toEqual({ text: 'I want to gym four times a week' })
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    })
+
+    it('shows the error when extraction fails', async () => {
+      const user = userEvent.setup()
+      mockApi({
+        'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
+        'GET /api/config': () => jsonResponse(AI_ON),
+        'POST /api/setup/extract': () => problemResponse(502, 'Assistant unavailable', 'The assistant is unavailable right now'),
+      })
+      renderSetup()
+      await user.type(await screen.findByLabelText(/in your own words/), 'something')
+
+      await user.click(screen.getByRole('button', { name: 'Extract goals and constraints' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('The assistant is unavailable right now')
+    })
   })
 })

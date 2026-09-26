@@ -1,5 +1,6 @@
 package com.lifeorganizer.setup.api;
 
+import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.error.InvalidRequestException;
 import com.lifeorganizer.setup.api.dto.CategoryDto;
 import com.lifeorganizer.setup.api.dto.ConstraintDto;
@@ -13,6 +14,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+
+import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
@@ -49,6 +52,53 @@ class SetupControllerTest {
 
     @MockitoBean
     SetupService setupService;
+
+    @MockitoBean
+    SetupExtractionService setupExtractionService;
+
+    @Test
+    void extractReturnsTheServicesPreview() throws Exception {
+        when(setupExtractionService.extract("I want to gym"))
+            .thenReturn(new SetupParseResponse(List.of(HEALTH), List.of(GYM), List.of(WORK), List.of("w")));
+
+        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"I want to gym\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.goals[0].id").value("health-gym"))
+            .andExpect(jsonPath("$.warnings[0]").value("w"));
+    }
+
+    @Test
+    void extractOfBlankTextIsABadRequest() throws Exception {
+        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"  \"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.detail").value("text is required"));
+    }
+
+    @Test
+    void extractOfTooLongTextIsABadRequest() throws Exception {
+        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"text\":\"" + "a".repeat(4001) + "\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.detail").value("text must be at most 4000 characters"));
+    }
+
+    @Test
+    void extractMapsAConnectivityFailureTo502() throws Exception {
+        when(setupExtractionService.extract("x")).thenThrow(new ResourceAccessException("down"));
+
+        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"x\"}"))
+            .andExpect(status().isBadGateway())
+            .andExpect(jsonPath("$.title").value("Assistant unavailable"));
+    }
+
+    @Test
+    void extractWithNoKeyConfiguredIs503() throws Exception {
+        when(setupExtractionService.extract("x")).thenThrow(new AiNotConfiguredException("AI features are not configured"));
+
+        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"x\"}"))
+            .andExpect(status().isServiceUnavailable());
+    }
 
     @Test
     void parseReturnsTheStructuredSetupAndWarnings() throws Exception {

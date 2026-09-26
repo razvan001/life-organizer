@@ -94,6 +94,7 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | POST | `/api/plan/today/events` | `MARK_DONE`, `POSTPONE_BLOCK`, `CANCEL_BLOCK`, `SET_ENERGY`, `ADD_ADHOC` |
 | GET | `/api/config` | `{aiEnabled, ragEnabled}` - `aiEnabled` reflects whether `GROQ_API_KEY` is configured; `ragEnabled` is false for now |
 | POST | `/api/assistant/command` | turn one sentence of free text into a proposed change (see "Assistant" below) |
+| POST | `/api/setup/extract` | turn a free-form brain dump into a goals/constraints preview (not saved; needs `GROQ_API_KEY`) |
 | POST | `/api/plan/today/events/batch` | apply several plan events at once (used by the assistant's Apply) |
 
 Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `deadline` is optional: send `deadline: null` (or omit it,
@@ -103,7 +104,7 @@ features are not configured).
 
 ## Assistant (optional)
 
-Set `GROQ_API_KEY` before starting the backend to turn on the natural-language command box at the
+Set `GROQ_API_KEY` before starting the backend to turn on the natural-language command box (and the brain-dump box on the Setup page) at the
 bottom of Today (get a free key at https://console.groq.com):
 
 ```bash
