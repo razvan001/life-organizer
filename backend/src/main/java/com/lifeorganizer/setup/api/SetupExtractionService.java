@@ -108,13 +108,15 @@ public class SetupExtractionService {
         if (raw.warnings() != null) {
             raw.warnings().stream().filter(w -> w != null && !w.isBlank()).forEach(warnings::add);
         }
+        log.debug("Model returned {} categories, {} goals, {} constraints, warnings={}",
+            orEmpty(raw.categories()).size(), orEmpty(raw.goals()).size(), orEmpty(raw.constraints()).size(), warnings);
 
         // Categories the model returned, deduplicated. An id that already exists keeps the EXISTING name.
         Map<String, CategoryDto> categories = new LinkedHashMap<>();
         for (CategoryDto category : orEmpty(raw.categories())) {
             if (category == null || category.id() == null || category.name() == null
                 || categories.containsKey(category.id())) {
-                warnings.add("Skipped a category the assistant returned without a usable id or name.");
+                skip(warnings, "Skipped a category the assistant returned without a usable id or name.");
                 continue;
             }
             CategoryDto resolved = existing.containsKey(category.id())
@@ -122,7 +124,7 @@ public class SetupExtractionService {
             try {
                 SetupDtoMapper.toDomain(resolved);
             } catch (InvalidRequestException e) {
-                warnings.add("Skipped category '" + category.id() + "': " + e.getMessage());
+                skip(warnings, "Skipped category '" + category.id() + "': " + e.getMessage());
                 continue;
             }
             categories.put(resolved.id(), resolved);
@@ -139,11 +141,11 @@ public class SetupExtractionService {
                 category = new CategoryDto(raw1.categoryId(), existing.get(raw1.categoryId()));
             }
             if (category == null) {
-                warnings.add("Skipped goal '" + label + "': it refers to an unknown category.");
+                skip(warnings, "Skipped goal '" + label + "': it refers to an unknown category.");
                 continue;
             }
             if (raw1.id() == null || raw1.name() == null || goals.containsKey(raw1.id())) {
-                warnings.add("Skipped goal '" + label + "': missing or duplicate id or name.");
+                skip(warnings, "Skipped goal '" + label + "': missing or duplicate id or name.");
                 continue;
             }
             GoalDto goal = new GoalDto(raw1.id(), raw1.categoryId(), raw1.name(),
@@ -155,10 +157,16 @@ public class SetupExtractionService {
                 raw1.energy() != null && ENERGIES.contains(raw1.energy()) ? raw1.energy() : "MEDIUM",
                 raw1.preferredTime() != null && PREFERRED_TIMES.contains(raw1.preferredTime())
                     ? raw1.preferredTime() : "ANY");
+            if (!goal.equals(new GoalDto(raw1.id(), raw1.categoryId(), raw1.name(), orZero(raw1.priority()),
+                goal.deadline(), orZero(raw1.defaultBlockMinutes()), raw1.energy(), raw1.preferredTime()))) {
+                log.debug("Goal '{}': model values adjusted to priority={} minutes={} energy={} time={} (model sent {}/{}/{}/{})",
+                    goal.id(), goal.priority(), goal.defaultBlockMinutes(), goal.energy(), goal.preferredTime(),
+                    raw1.priority(), raw1.defaultBlockMinutes(), raw1.energy(), raw1.preferredTime());
+            }
             try {
-                SetupDtoMapper.toDomain(goal, Map.of(category.id(), SetupDtoMapper.toDomain(category)));
+                SetupDtoMapper.toDomain(goal,Map.of(category.id(), SetupDtoMapper.toDomain(category)));
             } catch (InvalidRequestException e) {
-                warnings.add("Skipped goal '" + label + "': " + e.getMessage());
+                skip(warnings, "Skipped goal '" + label + "': " + e.getMessage());
                 continue;
             }
             goals.put(goal.id(), goal);
@@ -173,12 +181,12 @@ public class SetupExtractionService {
             try {
                 SetupDtoMapper.toDomain(constraint);
             } catch (InvalidRequestException e) {
-                warnings.add("Skipped constraint '" + constraint.label() + "': " + e.getMessage());
+                skip(warnings, "Skipped constraint '" + constraint.label() + "': " + e.getMessage());
                 continue;
             }
             String problem = brokenReference(constraint, goals.keySet(), categories, existing);
             if (problem != null) {
-                warnings.add("Skipped constraint '" + constraint.label() + "': " + problem);
+                skip(warnings, "Skipped constraint '" + constraint.label() + "': " + problem);
                 continue;
             }
             if (constraint.categoryId() != null && !categories.containsKey(constraint.categoryId())) {
@@ -191,6 +199,11 @@ public class SetupExtractionService {
             constraints, warnings);
     }
 
+    private static void skip(List<String> warnings, String message) {
+        log.warn("Extraction dropped an item: {}", message);
+        warnings.add(message);
+    }
+
     private static String brokenReference(ConstraintDto constraint, Set<String> goalIds,
                                           Map<String, CategoryDto> categories, Map<String, String> existing) {
         return switch (constraint.type()) {
@@ -200,6 +213,10 @@ public class SetupExtractionService {
                     ? null : "it refers to an unknown category.";
             default -> null;
         };
+    }
+
+    private static int orZero(Integer value) {
+        return value == null ? 0 : value;
     }
 
     private static <T> List<T> orEmpty(List<T> list) {
