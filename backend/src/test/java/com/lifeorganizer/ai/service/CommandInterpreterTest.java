@@ -104,6 +104,24 @@ class CommandInterpreterTest {
     }
 
     @Test
+    void downgradesToNotUnderstoodWhenAnEventTargetsAFreeBlock() {
+        // FREE blocks are leftover gaps, not real commitments - cancelling/postponing/marking one
+        // done is never a sensible action, and a FREE block's id is not stable across a replan
+        // (e.g. an ADD_ADHOC in the same batch can split or remove it).
+        Block free = new Block("free-2026-09-22-08:00", TODAY, LocalTime.of(8, 0), LocalTime.of(23, 0),
+            "Free", BlockKind.FREE, null, BlockStatus.PLANNED, 0, false, null);
+        ProposedEvent postponeFree = new ProposedEvent(ProposedEventType.POSTPONE_BLOCK, free.id(),
+            "movie time", null, null, null, null, null);
+        LlmCommandResult reply = new LlmCommandResult(true, "moving things around", null, List.of(postponeFree));
+        CommandInterpreter sut = interpreterFor((system, user) -> reply);
+
+        InterpretedCommand result = sut.interpret("movie from 20 to 22", TODAY, List.of(PADEL, free));
+
+        assertThat(result.understood()).isFalse();
+        assertThat(result.message()).isEqualTo("I couldn't find a matching block in today's plan.");
+    }
+
+    @Test
     void downgradesToNotUnderstoodWhenAnEventFailsEngineValidation() {
         // ADD_ADHOC with no title - ApplyEventRequest.toEvent rejects it
         ProposedEvent badAdhoc = new ProposedEvent(ProposedEventType.ADD_ADHOC, null, null,

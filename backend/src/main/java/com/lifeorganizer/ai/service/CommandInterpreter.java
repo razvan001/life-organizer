@@ -7,6 +7,7 @@ import com.lifeorganizer.ai.model.InterpretedCommand;
 import com.lifeorganizer.ai.model.ProposedEvent;
 import com.lifeorganizer.ai.model.ProposedEventType;
 import com.lifeorganizer.domain.Block;
+import com.lifeorganizer.domain.BlockKind;
 import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.error.InvalidRequestException;
 import com.lifeorganizer.plan.dto.ApplyEventRequest;
@@ -17,9 +18,9 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Set;
+import java.util.Map;
 
 /**
  * Turns one sentence of free text into zero or more validated engine events. Never mutates the plan -
@@ -41,7 +42,9 @@ public class CommandInterpreter {
         - MARK_DONE: mark a block done (blockId required)
         - SET_ENERGY: set a block's energy to LOW or MEDIUM (blockId and energy required)
         - ADD_ADHOC: add a new block (date yyyy-MM-dd, title, start and end HH:mm all required)
-        Only ever target blocks that are still PLANNED. Never invent a blockId. If the text does not clearly
+        Only ever target blocks that are still PLANNED. Never target a block whose kind is FREE - that is
+        leftover open time, not a real commitment, so it can never be cancelled, postponed, marked done or
+        have its energy set. Never invent a blockId. If the text does not clearly
         map to at least one of these events against a real block, set understood to false and explain why in
         message instead of guessing. Propose at most 5 events. Keep rationale to one short sentence.
         """;
@@ -77,16 +80,23 @@ public class CommandInterpreter {
             return InterpretedCommand.notUnderstood("That would need too many changes at once, or none at all.");
         }
 
-        Set<String> knownIds = new LinkedHashSet<>();
+        Map<String, Block> knownBlocks = new LinkedHashMap<>();
         for (Block block : todaysBlocks) {
-            knownIds.add(block.id());
+            knownBlocks.put(block.id(), block);
         }
 
         List<ApplyEventRequest> events = new ArrayList<>();
         for (ProposedEvent proposed : raw.events()) {
             String blockId = proposed.blockId();
-            if (blockId != null && !knownIds.contains(blockId)) {
-                log.warn("Downgrading to not-understood: unknown blockId '{}' (known ids: {})", blockId, knownIds);
+            Block target = blockId == null ? null : knownBlocks.get(blockId);
+            if (blockId != null && target == null) {
+                log.warn("Downgrading to not-understood: unknown blockId '{}' (known ids: {})", blockId, knownBlocks.keySet());
+                return InterpretedCommand.notUnderstood("I couldn't find a matching block in today's plan.");
+            }
+            // FREE blocks are leftover gaps, not real commitments: never a sensible target, and not
+            // stable across a replan (e.g. an earlier ADD_ADHOC in the same batch can split or remove one).
+            if (target != null && target.kind() == BlockKind.FREE) {
+                log.warn("Downgrading to not-understood: blockId '{}' is a FREE block, not a valid target", blockId);
                 return InterpretedCommand.notUnderstood("I couldn't find a matching block in today's plan.");
             }
             if (proposed.type() == ProposedEventType.ADD_ADHOC) {
