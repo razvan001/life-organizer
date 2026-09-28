@@ -3,6 +3,7 @@ package com.lifeorganizer.config;
 import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.error.AssistantUnavailableException;
 import com.lifeorganizer.error.InvalidRequestException;
+import com.lifeorganizer.error.NoteNotFoundException;
 import com.lifeorganizer.error.SetupRequiredException;
 import com.lifeorganizer.error.UnknownBlockException;
 import org.slf4j.Logger;
@@ -47,6 +48,11 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(InvalidRequestException.class)
     public ProblemDetail invalidRequest(InvalidRequestException e) {
         return problem(400, "Invalid request", e.getMessage());
+    }
+
+    @ExceptionHandler(NoteNotFoundException.class)
+    public ProblemDetail noteNotFound(NoteNotFoundException e) {
+        return problem(404, "Note not found", e.getMessage());
     }
 
     @ExceptionHandler(AssistantUnavailableException.class)
