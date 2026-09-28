@@ -32,7 +32,8 @@ class SchemaMigrationTest {
             "select table_name from information_schema.tables where table_schema = 'public' and table_type = 'BASE TABLE'",
             String.class);
 
-        assertThat(tables).contains("category", "goal", "plan_constraint", "block", "day_warning");
+        assertThat(tables).contains("category", "goal", "plan_constraint", "block", "day_warning", "note",
+            "memory_chunk");
     }
 
     @Test
