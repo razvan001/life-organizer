@@ -16,7 +16,7 @@ class ConfigControllerTest {
     MockMvc mvc;
 
     @Test
-    void reportsThatNoAiOrRagFeaturesAreEnabledYet() throws Exception {
+    void reportsNothingEnabledWhenNoOptionalBeansExist() throws Exception {
         mvc.perform(get("/api/config"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.aiEnabled").value(false))
