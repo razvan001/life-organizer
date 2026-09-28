@@ -299,10 +299,10 @@ class ApiEndToEndTest {
     }
 
     @Test
-    void configReportsNoAiOrRagYet() throws Exception {
+    void configReportsRagEnabledButNoAiWithoutAKey() throws Exception {
         mvc.perform(get("/api/config"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.aiEnabled").value(false))
-            .andExpect(jsonPath("$.ragEnabled").value(false));
+            .andExpect(jsonPath("$.ragEnabled").value(true));
     }
 }
