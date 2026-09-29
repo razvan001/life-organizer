@@ -62,6 +62,15 @@ class MemoryControllerTest {
     }
 
     @Test
+    void sourceIsCaseInsensitive() throws Exception {
+        when(search.search("gym", 8, SourceType.DAY)).thenReturn(List.of());
+
+        mvc.perform(get("/api/memory/search").param("q", "gym").param("source", "day"))
+            .andExpect(status().isOk());
+        verify(search).search("gym", 8, SourceType.DAY);
+    }
+
+    @Test
     void blankQueryIs400() throws Exception {
         mvc.perform(get("/api/memory/search").param("q", "  "))
             .andExpect(status().isBadRequest())

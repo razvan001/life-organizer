@@ -204,6 +204,78 @@ describe('NotesPage', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: 'Study' })).toBeEnabled())
   })
 
+  it('keeps unsaved edits when switching notes is cancelled', async () => {
+    const user = userEvent.setup()
+    const STUDY: NoteDto = { ...GYM, id: 2, title: 'Study', body: 'study body' }
+    vi.spyOn(window, 'confirm').mockReturnValue(false)
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM, STUDY]) })
+    render(<NotesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Gym' }))
+
+    const body = screen.getByLabelText('Body')
+    await user.clear(body)
+    await user.type(body, 'edited body')
+
+    await user.click(screen.getByRole('button', { name: 'Study' }))
+
+    expect(window.confirm).toHaveBeenCalledWith('Discard unsaved changes?')
+    expect(screen.getByLabelText('Title')).toHaveValue('Gym')
+    expect(screen.getByLabelText('Body')).toHaveValue('edited body')
+  })
+
+  it('switches notes when discarding unsaved edits is confirmed', async () => {
+    const user = userEvent.setup()
+    const STUDY: NoteDto = { ...GYM, id: 2, title: 'Study', body: 'study body' }
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM, STUDY]) })
+    render(<NotesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Gym' }))
+
+    const body = screen.getByLabelText('Body')
+    await user.clear(body)
+    await user.type(body, 'edited body')
+
+    await user.click(screen.getByRole('button', { name: 'Study' }))
+
+    expect(window.confirm).toHaveBeenCalledWith('Discard unsaved changes?')
+    expect(screen.getByLabelText('Title')).toHaveValue('Study')
+    expect(screen.getByLabelText('Body')).toHaveValue('study body')
+  })
+
+  it('does not prompt when switching notes without unsaved edits', async () => {
+    const user = userEvent.setup()
+    const STUDY: NoteDto = { ...GYM, id: 2, title: 'Study', body: 'study body' }
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM, STUDY]) })
+    render(<NotesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Gym' }))
+
+    await user.click(screen.getByRole('button', { name: 'Study' }))
+
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(screen.getByLabelText('Title')).toHaveValue('Study')
+  })
+
+  it('disables the title and body fields while a save is in flight', async () => {
+    const user = userEvent.setup()
+    let finish: (response: Response) => void = () => {}
+    mockApi({
+      'GET /api/notes': () => jsonResponse([]),
+      'POST /api/notes': () => new Promise<Response>((resolve) => (finish = resolve)),
+    })
+    render(<NotesPage />)
+    await screen.findByText('No notes yet.')
+
+    await user.type(screen.getByLabelText('Title'), 'Gym')
+    await user.click(screen.getByRole('button', { name: 'Save note' }))
+
+    expect(screen.getByLabelText('Title')).toBeDisabled()
+    expect(screen.getByLabelText('Body')).toBeDisabled()
+
+    finish(jsonResponse(GYM))
+    await waitFor(() => expect(screen.getByLabelText('Title')).toBeEnabled())
+  })
+
   it('shows an error when Opening a search result whose note is gone', async () => {
     const user = userEvent.setup()
     const STALE: MemoryResult = { sourceType: 'NOTE', sourceId: '99', title: 'Old note', date: null, snippet: 'gone', score: 0.5 }

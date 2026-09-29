@@ -4,8 +4,9 @@ A personal day planner. Paste your goals and your constraints once; the app buil
 and re-plans when the day changes (mark done, postpone, cancel, add an event).
 
 **Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API),
-the React UI, and a natural-language assistant (Phase 2: turn a sentence into plan changes via Groq) are
-done. Later phases add more of the AI layer (a planning agent, RAG).
+the React UI, a natural-language assistant (Phase 2: turn a sentence into plan changes via Groq), and RAG
+memory (Phase 3a: a Notes page with semantic search over notes and past days) are done. A planning agent
+comes in a later phase.
 
 ## What you need
 

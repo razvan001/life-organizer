@@ -19,6 +19,7 @@ function toDraft(note: NoteDto): Draft {
 export function NotesPage() {
   const { data: notes, error: loadError, refetch } = useApi(api.listNotes)
   const [draft, setDraft] = useState<Draft>(EMPTY)
+  const [saved, setSaved] = useState<Draft>(EMPTY)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MemoryResult[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -40,11 +41,23 @@ export function NotesPage() {
     return run(async () => setResults(await api.searchMemory(query.trim())))
   }
 
+  function isDirty() {
+    return draft.title !== saved.title || draft.body !== saved.body
+  }
+
+  function replaceDraft(next: Draft) {
+    if (isDirty() && !window.confirm('Discard unsaved changes?')) return
+    setDraft(next)
+    setSaved(next)
+  }
+
   function save() {
     return run(async () => {
       const request = { title: draft.title, body: draft.body }
-      const saved = draft.id === null ? await api.createNote(request) : await api.updateNote(draft.id, request)
-      setDraft(toDraft(saved))
+      const savedNote = draft.id === null ? await api.createNote(request) : await api.updateNote(draft.id, request)
+      const next = toDraft(savedNote)
+      setDraft(next)
+      setSaved(next)
       refetch()
     })
   }
@@ -55,6 +68,7 @@ export function NotesPage() {
     return run(async () => {
       await api.deleteNote(id)
       setDraft(EMPTY)
+      setSaved(EMPTY)
       refetch()
     })
   }
@@ -62,7 +76,7 @@ export function NotesPage() {
   function open(id: string) {
     const note = notes?.find((candidate) => String(candidate.id) === id)
     if (note) {
-      setDraft(toDraft(note))
+      replaceDraft(toDraft(note))
     } else {
       setError('That note no longer exists.')
     }
@@ -113,15 +127,15 @@ export function NotesPage() {
         <ul className="note-list">
           {notes.map((note) => (
             <li key={note.id}>
-              <button type="button" disabled={busy} onClick={() => setDraft(toDraft(note))}>
+              <button type="button" disabled={busy} onClick={() => replaceDraft(toDraft(note))}>
                 {note.title}
               </button>{' '}
-              <span className="muted">{note.updatedAt.slice(0, 10)}</span>
+              <span className="muted">{new Date(note.updatedAt).toLocaleDateString()}</span>
             </li>
           ))}
         </ul>
       )}
-      <button type="button" disabled={busy} onClick={() => setDraft(EMPTY)}>
+      <button type="button" disabled={busy} onClick={() => replaceDraft(EMPTY)}>
         New note
       </button>
 
@@ -133,6 +147,7 @@ export function NotesPage() {
           type="text"
           maxLength={255}
           value={draft.title}
+          disabled={busy}
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
         />
       </div>
@@ -143,6 +158,7 @@ export function NotesPage() {
           rows={10}
           maxLength={20000}
           value={draft.body}
+          disabled={busy}
           onChange={(e) => setDraft({ ...draft, body: e.target.value })}
         />
       </div>

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Locale;
 
 @RestController
 @RequestMapping("/api/memory")
@@ -47,7 +48,7 @@ public class MemoryController {
             return null;
         }
         try {
-            return SourceType.valueOf(source);
+            return SourceType.valueOf(source.trim().toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException e) {
             throw new InvalidRequestException("source must be NOTE or DAY");
         }
