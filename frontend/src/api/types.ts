@@ -130,3 +130,28 @@ export interface ApplyEventsRequest {
 export interface ApplyEventsResponse extends TodayPlanResponse {
   changes: string[]
 }
+
+export interface NoteDto {
+  id: number
+  title: string
+  body: string
+  createdAt: string
+  updatedAt: string
+}
+
+export interface NoteRequest {
+  title: string
+  body: string
+}
+
+export type MemorySourceType = 'NOTE' | 'DAY'
+
+export interface MemoryResult {
+  sourceType: MemorySourceType
+  sourceId: string
+  title: string
+  /** yyyy-MM-dd for DAY results, null for notes */
+  date: string | null
+  snippet: string
+  score: number
+}

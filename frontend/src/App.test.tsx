@@ -20,6 +20,7 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: "Today's plan" })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Setup' })).toHaveAttribute('href', '/setup')
     expect(screen.getByRole('link', { name: 'Today' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Notes' })).toHaveAttribute('href', '/notes')
   })
 
   it('sends an unknown address to Today', async () => {

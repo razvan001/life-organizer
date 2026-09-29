@@ -5,6 +5,9 @@ import type {
   CommandRequest,
   CommandResponse,
   ConfigResponse,
+  MemoryResult,
+  NoteDto,
+  NoteRequest,
   PlanEventRequest,
   SetupExtractionRequest,
   SetupParseRequest,
@@ -48,6 +51,9 @@ async function send<T>(method: string, path: string, body?: unknown): Promise<T>
   if (!response.ok) {
     throw await toApiError(response)
   }
+  if (response.status === 204) {
+    return undefined as T
+  }
   return (await response.json()) as T
 }
 
@@ -62,6 +68,11 @@ export const api = {
   getConfig: () => send<ConfigResponse>('GET', '/api/config'),
   proposeCommand: (request: CommandRequest) => send<CommandResponse>('POST', '/api/assistant/command', request),
   applyEvents: (request: ApplyEventsRequest) => send<ApplyEventsResponse>('POST', '/api/plan/today/events/batch', request),
+  listNotes: () => send<NoteDto[]>('GET', '/api/notes'),
+  createNote: (note: NoteRequest) => send<NoteDto>('POST', '/api/notes', note),
+  updateNote: (id: number, note: NoteRequest) => send<NoteDto>('PUT', `/api/notes/${id}`, note),
+  deleteNote: (id: number) => send<void>('DELETE', `/api/notes/${id}`),
+  searchMemory: (q: string) => send<MemoryResult[]>('GET', `/api/memory/search?q=${encodeURIComponent(q)}`),
 }
 
 /** True when the backend says no setup is saved yet: the UI then sends the user to /setup. */

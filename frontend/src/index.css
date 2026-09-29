@@ -246,3 +246,17 @@ textarea {
   margin: 0 0 0.5rem;
   font-size: 1rem;
 }
+
+.memory-results,
+.note-list {
+  list-style: none;
+  padding: 0;
+}
+
+.memory-results li {
+  margin-bottom: 0.75rem;
+}
+
+.memory-results p {
+  margin: 0.25rem 0;
+}
