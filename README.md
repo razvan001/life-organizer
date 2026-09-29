@@ -92,10 +92,15 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | GET | `/api/setup` | the stored setup |
 | GET | `/api/plan/today` | today's blocks (generated on first request, then persisted) |
 | POST | `/api/plan/today/events` | `MARK_DONE`, `POSTPONE_BLOCK`, `CANCEL_BLOCK`, `SET_ENERGY`, `ADD_ADHOC` |
-| GET | `/api/config` | `{aiEnabled, ragEnabled}` - `aiEnabled` reflects whether `GROQ_API_KEY` is configured; `ragEnabled` is false for now |
+| GET | `/api/config` | `{aiEnabled, ragEnabled}` - `aiEnabled` reflects whether `GROQ_API_KEY` is configured; `ragEnabled` is true when the local embedding model is loaded (always, unless removed) |
 | POST | `/api/assistant/command` | turn one sentence of free text into a proposed change (see "Assistant" below) |
 | POST | `/api/setup/extract` | turn a free-form brain dump into a goals/constraints preview (not saved; needs `GROQ_API_KEY`) |
 | POST | `/api/plan/today/events/batch` | apply several plan events at once (used by the assistant's Apply) |
+| GET | `/api/notes` | list notes, newest first |
+| POST | `/api/notes` | create a note `{title, body}` (201) |
+| PUT | `/api/notes/{id}` | update a note |
+| DELETE | `/api/notes/{id}` | delete a note (204) |
+| GET | `/api/memory/search?q=&k=&source=` | semantic search over notes and past days (`k` 1-20, default 8; `source` NOTE or DAY) |
 
 Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `deadline` is optional: send `deadline: null` (or omit it,
 or send an empty string) for no deadline. Errors are RFC 7807 `application/problem+json`
@@ -117,6 +122,16 @@ one-line rationale and a list of what would change; press Apply to actually make
 discard it and try again. Without the key, `GET /api/config` reports `aiEnabled:false` and the box does not
 appear - every other feature is unaffected. The model used is `openai/gpt-oss-120b` (configurable via the
 `app.ai.model` property).
+
+## Memory (RAG)
+
+The Notes page stores your own notes and searches them together with a one-line summary of every past day
+(what you did, postponed or cancelled, and why). Search is semantic: "tired after a workout" finds a note
+that says "after gym I can't focus on study".
+
+Embeddings come from all-MiniLM-L6-v2 (quantized) running inside the backend. No API key, no network.
+Vectors live in Postgres through the pgvector extension (table `memory_chunk`, HNSW cosine index).
+Past days are indexed when the backend starts and every night at 00:05.
 
 ## How planning works
 
