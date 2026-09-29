@@ -171,4 +171,53 @@ describe('NotesPage', () => {
     expect(await screen.findByText('No notes yet.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save note' })).toBeDisabled()
   })
+
+  it('shows the load error when notes fail to load', async () => {
+    mockApi({ 'GET /api/notes': () => problemResponse(500, 'Unexpected error', 'Something went wrong') })
+
+    render(<NotesPage />)
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong')
+  })
+
+  it('disables switching notes and opening search results while a save is in flight', async () => {
+    const user = userEvent.setup()
+    const STUDY: NoteDto = { ...GYM, id: 2, title: 'Study' }
+    let finish: (response: Response) => void = () => {}
+    mockApi({
+      'GET /api/notes': () => jsonResponse([GYM, STUDY]),
+      'GET /api/memory/search?q=gym': () => jsonResponse(RESULTS),
+      'PUT /api/notes/1': () => new Promise<Response>((resolve) => (finish = resolve)),
+    })
+    render(<NotesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Gym' }))
+    await user.type(screen.getByLabelText('Search your notes and past days'), 'gym')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+    await screen.findByRole('list', { name: 'Search results' })
+
+    await user.click(screen.getByRole('button', { name: 'Save note' }))
+
+    expect(screen.getByRole('button', { name: 'Study' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Open' })).toBeDisabled()
+
+    finish(jsonResponse(GYM))
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Study' })).toBeEnabled())
+  })
+
+  it('shows an error when Opening a search result whose note is gone', async () => {
+    const user = userEvent.setup()
+    const STALE: MemoryResult = { sourceType: 'NOTE', sourceId: '99', title: 'Old note', date: null, snippet: 'gone', score: 0.5 }
+    mockApi({
+      'GET /api/notes': () => jsonResponse([GYM]),
+      'GET /api/memory/search?q=old': () => jsonResponse([STALE]),
+    })
+    render(<NotesPage />)
+
+    await user.type(screen.getByLabelText('Search your notes and past days'), 'old')
+    await user.click(screen.getByRole('button', { name: 'Search' }))
+
+    await user.click(await screen.findByRole('button', { name: 'Open' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('That note no longer exists.')
+  })
 })

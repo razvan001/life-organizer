@@ -17,7 +17,7 @@ function toDraft(note: NoteDto): Draft {
 
 /** Notes you write yourself, plus semantic search over them and over past days. */
 export function NotesPage() {
-  const { data: notes, refetch } = useApi(api.listNotes)
+  const { data: notes, error: loadError, refetch } = useApi(api.listNotes)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MemoryResult[] | null>(null)
@@ -61,7 +61,11 @@ export function NotesPage() {
 
   function open(id: string) {
     const note = notes?.find((candidate) => String(candidate.id) === id)
-    if (note) setDraft(toDraft(note))
+    if (note) {
+      setDraft(toDraft(note))
+    } else {
+      setError('That note no longer exists.')
+    }
   }
 
   return (
@@ -93,7 +97,7 @@ export function NotesPage() {
               <strong>{result.title}</strong> <span className="muted">{result.score.toFixed(2)}</span>
               <p>{result.snippet}</p>
               {result.sourceType === 'NOTE' && (
-                <button type="button" onClick={() => open(result.sourceId)}>
+                <button type="button" disabled={busy} onClick={() => open(result.sourceId)}>
                   Open
                 </button>
               )}
@@ -103,12 +107,13 @@ export function NotesPage() {
       )}
 
       <h3>Your notes</h3>
+      {loadError != null && notes === null && <p role="alert">{errorMessage(loadError)}</p>}
       {notes && notes.length === 0 && <p className="muted">No notes yet.</p>}
       {notes && notes.length > 0 && (
         <ul className="note-list">
           {notes.map((note) => (
             <li key={note.id}>
-              <button type="button" onClick={() => setDraft(toDraft(note))}>
+              <button type="button" disabled={busy} onClick={() => setDraft(toDraft(note))}>
                 {note.title}
               </button>{' '}
               <span className="muted">{note.updatedAt.slice(0, 10)}</span>
