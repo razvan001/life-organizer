@@ -2,8 +2,10 @@ package com.lifeorganizer.config;
 
 import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.error.AssistantUnavailableException;
+import com.lifeorganizer.error.ChatMessageNotFoundException;
 import com.lifeorganizer.error.InvalidRequestException;
 import com.lifeorganizer.error.NoteNotFoundException;
+import com.lifeorganizer.error.ProposalNotAvailableException;
 import com.lifeorganizer.error.SetupRequiredException;
 import com.lifeorganizer.error.UnknownBlockException;
 import org.slf4j.Logger;
@@ -53,6 +55,16 @@ public class GlobalExceptionHandler extends ResponseEntityExceptionHandler {
     @ExceptionHandler(NoteNotFoundException.class)
     public ProblemDetail noteNotFound(NoteNotFoundException e) {
         return problem(404, "Note not found", e.getMessage());
+    }
+
+    @ExceptionHandler(ChatMessageNotFoundException.class)
+    public ProblemDetail chatMessageNotFound(ChatMessageNotFoundException e) {
+        return problem(404, "Message not found", e.getMessage());
+    }
+
+    @ExceptionHandler(ProposalNotAvailableException.class)
+    public ProblemDetail proposalNotAvailable(ProposalNotAvailableException e) {
+        return problem(409, "Proposal not available", e.getMessage());
     }
 
     @ExceptionHandler(AssistantUnavailableException.class)

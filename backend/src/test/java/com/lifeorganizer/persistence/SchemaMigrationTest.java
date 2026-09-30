@@ -33,7 +33,7 @@ class SchemaMigrationTest {
             String.class);
 
         assertThat(tables).contains("category", "goal", "plan_constraint", "block", "day_warning", "note",
-            "memory_chunk");
+            "memory_chunk", "chat_message");
     }
 
     @Test
