@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.sql.Date;
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
@@ -60,7 +61,12 @@ public class MemoryChunkStore {
             .stream().findFirst();
     }
 
-    /** The k chunks closest to the query by cosine distance, optionally only of one source type. */
+    /**
+     * The k chunks closest to the query by cosine distance, optionally only of one source type, best first.
+     * With a filter, the HNSW index would only post-filter its first ef_search candidates, so a rare source type
+     * could come back with fewer than k rows; iterative scan (pgvector 0.8+) keeps scanning until k rows match.
+     * relaxed_order may return rows slightly out of order, hence the sort.
+     */
     @Transactional(readOnly = true)
     public List<MemoryHit> search(float[] query, int k, SourceType filter) {
         String vector = literal(query);
@@ -71,13 +77,16 @@ public class MemoryChunkStore {
             """);
         args.add(vector);
         if (filter != null) {
+            jdbc.execute("SET LOCAL hnsw.iterative_scan = relaxed_order");
             sql.append("where source_type = ?\n");
             args.add(filter.name());
         }
         sql.append("order by embedding <=> ?::vector limit ?");
         args.add(vector);
         args.add(k);
-        return jdbc.query(sql.toString(), HIT, args.toArray());
+        List<MemoryHit> hits = new ArrayList<>(jdbc.query(sql.toString(), HIT, args.toArray()));
+        hits.sort(Comparator.comparingDouble(MemoryHit::score).reversed());
+        return hits;
     }
 
     static String literal(float[] vector) {

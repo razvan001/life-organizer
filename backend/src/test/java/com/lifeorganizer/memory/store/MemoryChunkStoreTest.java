@@ -7,12 +7,16 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Random;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -30,6 +34,9 @@ class MemoryChunkStoreTest {
 
     @Autowired
     MemoryChunkStore store;
+
+    @Autowired
+    JdbcTemplate jdbc;
 
     private NewChunk chunk(String text) {
         return new NewChunk(text, embedder.embed(text));
@@ -105,5 +112,34 @@ class MemoryChunkStoreTest {
 
         assertThat(hit.text()).isEqualTo(text);
         assertThat(hit.title()).isEqualTo("Title with 'quotes'");
+    }
+
+    private static float[] randomVector(Random random) {
+        float[] vector = new float[384];
+        for (int i = 0; i < vector.length; i++) {
+            vector[i] = (float) random.nextGaussian();
+        }
+        return vector;
+    }
+
+    @Test
+    void aFilteredSearchStillReturnsKHitsWhenThatSourceIsRare() {
+        Random random = new Random(42);
+        List<Object[]> rows = new ArrayList<>();
+        for (int i = 0; i < 6000; i++) {
+            SourceType type = i < 5500 ? SourceType.NOTE : SourceType.DAY;
+            rows.add(new Object[] {type.name(), "s" + i, "T", "text " + i, "h",
+                MemoryChunkStore.literal(randomVector(random))});
+        }
+        jdbc.batchUpdate("""
+            insert into memory_chunk (source_type, source_id, title, text, content_hash, embedding)
+            values (?, ?, ?, ?, ?, ?::vector)
+            """, rows);
+        jdbc.execute("analyze memory_chunk");
+
+        List<MemoryHit> hits = store.search(randomVector(random), 20, SourceType.DAY);
+
+        assertThat(hits).hasSize(20).allSatisfy(hit -> assertThat(hit.sourceType()).isEqualTo(SourceType.DAY));
+        assertThat(hits).extracting(MemoryHit::score).isSortedAccordingTo(Comparator.reverseOrder());
     }
 }
