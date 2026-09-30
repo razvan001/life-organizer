@@ -207,14 +207,55 @@ describe('NotesPage', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('q must be at most 500 characters')
   })
 
-  it('disables Save until a title is typed', async () => {
+  it('disables Save until both title and body have text', async () => {
+    const user = userEvent.setup()
     mockApi({ 'GET /api/notes': () => jsonResponse([]) })
-
     render(<NotesPage />)
-
     expect(await screen.findByText('No notes yet.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Save note' })).toBeDisabled()
+    const save = screen.getByRole('button', { name: 'Save note' })
+    expect(save).toBeDisabled()
+
+    await user.type(screen.getByLabelText('Title'), 'Gym')
+    expect(save).toBeDisabled()
+    await user.type(screen.getByLabelText('Body'), '   ')
+    expect(save).toBeDisabled()
+    await user.type(screen.getByLabelText('Body'), 'text')
+    expect(save).toBeEnabled()
   })
+
+  it('says a field is required only after the user leaves it empty', async () => {
+    const user = userEvent.setup()
+    mockApi({ 'GET /api/notes': () => jsonResponse([]) })
+    render(<NotesPage />)
+    await screen.findByText('No notes yet.')
+    expect(screen.queryByText('Title is required.')).not.toBeInTheDocument()
+    expect(screen.queryByText('Body is required.')).not.toBeInTheDocument()
+
+    await user.click(screen.getByLabelText('Title'))
+    await user.click(screen.getByLabelText('Body'))
+    expect(screen.getByText('Title is required.')).toBeInTheDocument()
+    await user.tab()
+    expect(screen.getByText('Body is required.')).toBeInTheDocument()
+
+    await user.type(screen.getByLabelText('Title'), 'Gym')
+    expect(screen.queryByText('Title is required.')).not.toBeInTheDocument()
+  })
+
+  it('shows character counters and caps the fields at their limits', async () => {
+    const user = userEvent.setup()
+    mockApi({ 'GET /api/notes': () => jsonResponse([]) })
+    render(<NotesPage />)
+    await screen.findByText('No notes yet.')
+
+    expect(screen.getByText('0 / 255')).toBeInTheDocument()
+    expect(screen.getByText('0 / 500')).toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveAttribute('maxLength', '255')
+    expect(screen.getByLabelText('Body')).toHaveAttribute('maxLength', '500')
+
+    await user.type(screen.getByLabelText('Body'), 'hello')
+    expect(screen.getByText('5 / 500')).toBeInTheDocument()
+  })
+
   it('shows the load error when notes fail to load', async () => {
     mockApi({ 'GET /api/notes': () => problemResponse(500, 'Unexpected error', 'Something went wrong') })
 

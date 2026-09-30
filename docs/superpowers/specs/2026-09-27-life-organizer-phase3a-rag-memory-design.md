@@ -91,7 +91,8 @@ CREATE INDEX idx_memory_chunk_embedding ON memory_chunk USING hnsw (embedding ve
 - `NoteEntity`, `NoteRepository`, `NoteService`, `NoteController`.
 - `GET /api/notes` (newest updated first), `POST /api/notes`, `PUT /api/notes/{id}`, `DELETE /api/notes/{id}`.
 - Every write re-indexes that note's chunks in the same transaction. A delete removes its chunks.
-- Validation: title required and at most 255 characters; body at most 20 000 characters → 400. Unknown id → 404.
+- Validation: title required and at most 255 characters; body required and at most 500 characters → 400. Unknown id → 404. (Changed on 2026-09-30 at the user's request; the first version allowed an empty body of up to 20 000 characters.)
+- The form shows a character counter under each field and a "required" message once the user leaves a required field empty.
 
 ### 3.5 Plan history
 

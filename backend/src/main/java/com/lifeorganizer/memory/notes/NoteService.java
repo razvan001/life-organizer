@@ -17,7 +17,7 @@ import java.util.List;
 public class NoteService {
 
     static final int MAX_TITLE = 255;
-    static final int MAX_BODY = 20_000;
+    static final int MAX_BODY = 500;
 
     private final NoteRepository notes;
     private final MemoryIndexer indexer;
@@ -74,11 +74,13 @@ public class NoteService {
     }
 
     private static String validBody(String body) {
-        String value = body == null ? "" : body;
-        if (value.length() > MAX_BODY) {
+        if (body == null || body.isBlank()) {
+            throw new InvalidRequestException("body is required");
+        }
+        if (body.length() > MAX_BODY) {
             throw new InvalidRequestException("body must be at most " + MAX_BODY + " characters");
         }
-        return value;
+        return body;
     }
 
     private static NoteDto toDto(NoteEntity note) {

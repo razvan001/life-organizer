@@ -93,11 +93,17 @@ class NoteServiceTest {
     }
 
     @Test
-    void anEmptyBodyIsAllowed() {
-        NoteDto created = notes.create(new NoteRequest("Padel ideas", null));
+    void anEmptyBodyIsRejected() {
+        assertThatThrownBy(() -> notes.create(new NoteRequest("Padel ideas", null)))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("body is required");
+        assertThatThrownBy(() -> notes.create(new NoteRequest("Padel ideas", "   ")))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("body is required");
+        assertThat(notes.list()).isEmpty();
+    }
 
-        assertThat(created.body()).isEmpty();
-        assertThat(search("padel ideas")).hasSize(1);
+    @Test
+    void aBodyOfExactly500CharactersIsAllowed() {
+        assertThat(notes.create(new NoteRequest("t", "b".repeat(500))).body()).hasSize(500);
     }
 
     @Test
@@ -112,7 +118,7 @@ class NoteServiceTest {
             .isInstanceOf(InvalidRequestException.class).hasMessage("title is required");
         assertThatThrownBy(() -> notes.create(new NoteRequest("t".repeat(256), "b")))
             .isInstanceOf(InvalidRequestException.class).hasMessage("title must be at most 255 characters");
-        assertThatThrownBy(() -> notes.create(new NoteRequest("t", "b".repeat(20_001))))
-            .isInstanceOf(InvalidRequestException.class).hasMessage("body must be at most 20000 characters");
+        assertThatThrownBy(() -> notes.create(new NoteRequest("t", "b".repeat(501))))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("body must be at most 500 characters");
     }
 }

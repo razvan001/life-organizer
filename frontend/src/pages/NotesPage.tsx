@@ -11,6 +11,18 @@ interface Draft {
 
 const EMPTY: Draft = { id: null, title: '', body: '' }
 
+// Same limits the backend enforces (NoteService).
+const TITLE_MAX = 255
+const BODY_MAX = 500
+
+/** Which fields the user has left at least once; a "required" message only shows for those. */
+interface Touched {
+  title: boolean
+  body: boolean
+}
+
+const UNTOUCHED: Touched = { title: false, body: false }
+
 function toDraft(note: NoteDto): Draft {
   return { id: note.id, title: note.title, body: note.body }
 }
@@ -20,6 +32,9 @@ export function NotesPage() {
   const { data: notes, error: loadError, refetch } = useApi(api.listNotes)
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [saved, setSaved] = useState<Draft>(EMPTY)
+  const [touched, setTouched] = useState<Touched>(UNTOUCHED)
+  const titleMissing = draft.title.trim() === ''
+  const bodyMissing = draft.body.trim() === ''
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MemoryResult[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -49,6 +64,7 @@ export function NotesPage() {
     if (isDirty() && !window.confirm('Discard unsaved changes?')) return
     setDraft(next)
     setSaved(next)
+    setTouched(UNTOUCHED)
   }
 
   function save() {
@@ -61,6 +77,7 @@ export function NotesPage() {
       const next = creating ? EMPTY : toDraft(savedNote)
       setDraft(next)
       setSaved(next)
+      setTouched(UNTOUCHED)
       refetch()
     })
   }
@@ -72,6 +89,7 @@ export function NotesPage() {
       await api.deleteNote(id)
       setDraft(EMPTY)
       setSaved(EMPTY)
+      setTouched(UNTOUCHED)
       refetch()
     })
   }
@@ -153,24 +171,42 @@ export function NotesPage() {
         <input
           id="note-title"
           type="text"
-          maxLength={255}
+          maxLength={TITLE_MAX}
           value={draft.title}
           disabled={busy}
+          aria-invalid={touched.title && titleMissing}
+          aria-describedby="note-title-help"
           onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+          onBlur={() => setTouched({ ...touched, title: true })}
         />
+        <div id="note-title-help" className="field-help">
+          {touched.title && titleMissing && <span className="field-error">Title is required.</span>}
+          <span className="muted counter">
+            {draft.title.length} / {TITLE_MAX}
+          </span>
+        </div>
       </div>
       <div className="field">
         <label htmlFor="note-body">Body</label>
         <textarea
           id="note-body"
-          rows={10}
-          maxLength={20000}
+          rows={6}
+          maxLength={BODY_MAX}
           value={draft.body}
           disabled={busy}
+          aria-invalid={touched.body && bodyMissing}
+          aria-describedby="note-body-help"
           onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+          onBlur={() => setTouched({ ...touched, body: true })}
         />
+        <div id="note-body-help" className="field-help">
+          {touched.body && bodyMissing && <span className="field-error">Body is required.</span>}
+          <span className="muted counter">
+            {draft.body.length} / {BODY_MAX}
+          </span>
+        </div>
       </div>
-      <button type="button" disabled={busy || draft.title.trim() === ''} onClick={save}>
+      <button type="button" disabled={busy || titleMissing || bodyMissing} onClick={save}>
         Save note
       </button>{' '}
       {draft.id !== null && (

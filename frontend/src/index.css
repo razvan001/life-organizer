@@ -261,6 +261,21 @@ textarea {
   margin: 0.25rem 0;
 }
 
+.field-help {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.85rem;
+}
+
+.field-help .counter {
+  margin-left: auto;
+}
+
+.field-error {
+  color: #b42318;
+}
+
 /* the note currently open in the editor */
 .note-list li.selected button {
   font-weight: 600;
