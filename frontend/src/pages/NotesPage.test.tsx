@@ -58,6 +58,50 @@ describe('NotesPage', () => {
     expect(await screen.findByRole('button', { name: 'Gym' })).toBeInTheDocument()
     const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
     expect(JSON.parse(post[1]!.body as string)).toEqual({ title: 'Gym', body: "after gym I can't focus on study" })
+    // after creating, the form is ready for the next new note
+    expect(screen.getByRole('heading', { name: 'New note' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveValue('')
+    expect(screen.getByLabelText('Body')).toHaveValue('')
+  })
+
+  it('creates two notes in a row without clicking New note', async () => {
+    const user = userEvent.setup()
+    let notes: NoteDto[] = []
+    let nextId = 1
+    const fetchMock = mockApi({
+      'GET /api/notes': () => jsonResponse(notes),
+      'POST /api/notes': (init) => {
+        const request = JSON.parse(init!.body as string) as { title: string; body: string }
+        const created = { ...GYM, id: nextId++, ...request }
+        notes = [created, ...notes]
+        return jsonResponse(created, 201)
+      },
+    })
+    render(<NotesPage />)
+
+    await user.type(screen.getByLabelText('Title'), 'Gym')
+    await user.type(screen.getByLabelText('Body'), 'gym body')
+    await user.click(screen.getByRole('button', { name: 'Save note' }))
+    await screen.findByRole('button', { name: 'Gym' })
+    await user.type(screen.getByLabelText('Title'), 'Car')
+    await user.type(screen.getByLabelText('Body'), 'car body')
+    await user.click(screen.getByRole('button', { name: 'Save note' }))
+
+    expect(await screen.findByRole('button', { name: 'Car' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Gym' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === 'POST')).toHaveLength(2)
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'PUT')).toBe(false)
+  })
+
+  it('marks the note being edited in the list', async () => {
+    const user = userEvent.setup()
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM, { ...GYM, id: 2, title: 'Car' }]) })
+    render(<NotesPage />)
+
+    await user.click(await screen.findByRole('button', { name: 'Gym' }))
+
+    expect(screen.getByRole('button', { name: 'Gym' })).toHaveAttribute('aria-current', 'true')
+    expect(screen.getByRole('button', { name: 'Car' })).not.toHaveAttribute('aria-current')
     expect(screen.getByRole('heading', { name: 'Edit note' })).toBeInTheDocument()
   })
 
@@ -171,7 +215,6 @@ describe('NotesPage', () => {
     expect(await screen.findByText('No notes yet.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Save note' })).toBeDisabled()
   })
-
   it('shows the load error when notes fail to load', async () => {
     mockApi({ 'GET /api/notes': () => problemResponse(500, 'Unexpected error', 'Something went wrong') })
 
@@ -267,6 +310,7 @@ describe('NotesPage', () => {
     await screen.findByText('No notes yet.')
 
     await user.type(screen.getByLabelText('Title'), 'Gym')
+    await user.type(screen.getByLabelText('Body'), 'gym body')
     await user.click(screen.getByRole('button', { name: 'Save note' }))
 
     expect(screen.getByLabelText('Title')).toBeDisabled()

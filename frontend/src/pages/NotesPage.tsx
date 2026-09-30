@@ -54,8 +54,11 @@ export function NotesPage() {
   function save() {
     return run(async () => {
       const request = { title: draft.title, body: draft.body }
-      const savedNote = draft.id === null ? await api.createNote(request) : await api.updateNote(draft.id, request)
-      const next = toDraft(savedNote)
+      const creating = draft.id === null
+      const savedNote = creating ? await api.createNote(request) : await api.updateNote(draft.id!, request)
+      // A new note goes to the list and the form is cleared for the next one, so a second Save never
+      // silently overwrites the first. An edited note stays open.
+      const next = creating ? EMPTY : toDraft(savedNote)
       setDraft(next)
       setSaved(next)
       refetch()
@@ -126,8 +129,13 @@ export function NotesPage() {
       {notes && notes.length > 0 && (
         <ul className="note-list">
           {notes.map((note) => (
-            <li key={note.id}>
-              <button type="button" disabled={busy} onClick={() => replaceDraft(toDraft(note))}>
+            <li key={note.id} className={note.id === draft.id ? 'selected' : undefined}>
+              <button
+                type="button"
+                disabled={busy}
+                aria-current={note.id === draft.id ? 'true' : undefined}
+                onClick={() => replaceDraft(toDraft(note))}
+              >
                 {note.title}
               </button>{' '}
               <span className="muted">{new Date(note.updatedAt).toLocaleDateString()}</span>
