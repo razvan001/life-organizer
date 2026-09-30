@@ -20,21 +20,27 @@ public class LlmClientConfig {
     @ConditionalOnProperty(name = "GROQ_API_KEY")
     public LlmCommandClient llmCommandClient(@Value("${GROQ_API_KEY}") String apiKey,
                                               @Value("${app.ai.model:openai/gpt-oss-120b}") String model) {
-        RestClient restClient = RestClient.builder()
-            .baseUrl(GROQ_ENDPOINT)
-            .defaultHeader("Authorization", "Bearer " + apiKey)
-            .build();
-        return new GroqCommandClient(restClient, model);
+        return new GroqCommandClient(groqRestClient(apiKey), model);
     }
 
     @Bean
     @ConditionalOnProperty(name = "GROQ_API_KEY")
     public SetupExtractionClient setupExtractionClient(@Value("${GROQ_API_KEY}") String apiKey,
                                                        @Value("${app.ai.model:openai/gpt-oss-120b}") String model) {
-        RestClient restClient = RestClient.builder()
+        return new GroqExtractionClient(groqRestClient(apiKey), model);
+    }
+
+    @Bean
+    @ConditionalOnProperty(name = "GROQ_API_KEY")
+    public AgentLlmClient agentLlmClient(@Value("${GROQ_API_KEY}") String apiKey,
+                                         @Value("${app.ai.model:openai/gpt-oss-120b}") String model) {
+        return new GroqAgentClient(groqRestClient(apiKey), model);
+    }
+
+    private static RestClient groqRestClient(String apiKey) {
+        return RestClient.builder()
             .baseUrl(GROQ_ENDPOINT)
             .defaultHeader("Authorization", "Bearer " + apiKey)
             .build();
-        return new GroqExtractionClient(restClient, model);
     }
 }

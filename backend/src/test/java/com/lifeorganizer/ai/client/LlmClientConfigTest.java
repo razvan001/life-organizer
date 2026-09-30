@@ -20,4 +20,15 @@ class LlmClientConfigTest {
         contextRunner.withPropertyValues("GROQ_API_KEY=gsk_test-dummy-key")
             .run(context -> assertThat(context).hasSingleBean(LlmCommandClient.class));
     }
+
+    @Test
+    void noAgentClientWithoutAnApiKey() {
+        contextRunner.run(context -> assertThat(context).doesNotHaveBean(AgentLlmClient.class));
+    }
+
+    @Test
+    void anAgentClientExistsWhenTheApiKeyIsSet() {
+        contextRunner.withPropertyValues("GROQ_API_KEY=gsk_test-dummy-key")
+            .run(context -> assertThat(context).hasSingleBean(AgentLlmClient.class));
+    }
 }

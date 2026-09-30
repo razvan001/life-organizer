@@ -1,5 +1,6 @@
 package com.lifeorganizer.ai.client;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.MediaType;
@@ -44,15 +45,14 @@ class GroqChatClient {
         return format;
     }
 
-    <T> T call(String systemPrompt, String userMessage, Map<String, Object> responseFormat, Class<T> targetType) {
+    /** Posts one chat-completions request and returns the first choice's message. */
+    ChatMessage send(List<Map<String, Object>> messages, Map<String, Object> extra) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("model", model);
-        body.put("messages", List.of(
-            Map.of("role", "system", "content", systemPrompt),
-            Map.of("role", "user", "content", userMessage)));
-        body.put("response_format", responseFormat);
+        body.put("messages", messages);
+        body.putAll(extra);
 
-        log.debug("Calling Groq model={} userMessage.length={}", model, userMessage.length());
+        log.debug("Calling Groq model={} messages={}", model, messages.size());
 
         // RestClient's default behaviour throws RestClientResponseException for any non-2xx status,
         // and ResourceAccessException for network/timeout failures - both are RestClientException
@@ -69,12 +69,19 @@ class GroqChatClient {
             log.warn("Groq call failed: {}", e.getMessage());
             throw e;
         }
-
-        if (response == null || response.choices() == null || response.choices().isEmpty()) {
+        if (response == null || response.choices() == null || response.choices().isEmpty()
+            || response.choices().get(0).message() == null) {
             log.warn("Groq returned no choices: {}", response);
             throw new MalformedLlmReplyException("Groq returned no choices");
         }
-        String content = response.choices().get(0).message().content();
+        return response.choices().get(0).message();
+    }
+
+    <T> T call(String systemPrompt, String userMessage, Map<String, Object> responseFormat, Class<T> targetType) {
+        String content = send(List.of(
+                Map.of("role", "system", "content", systemPrompt),
+                Map.of("role", "user", "content", userMessage)),
+            Map.of("response_format", responseFormat)).content();
         if (content == null || content.isBlank()) {
             log.warn("Groq returned an empty message");
             throw new MalformedLlmReplyException("Groq returned no message content");
@@ -88,12 +95,18 @@ class GroqChatClient {
         }
     }
 
-    private record GroqChatResponse(List<Choice> choices) {
+    record GroqChatResponse(List<Choice> choices) {
     }
 
-    private record Choice(ChatMessage message) {
+    record Choice(ChatMessage message) {
     }
 
-    private record ChatMessage(String content) {
+    record ChatMessage(String content, @JsonProperty("tool_calls") List<GroqToolCall> toolCalls) {
+    }
+
+    record GroqToolCall(String id, GroqFunction function) {
+    }
+
+    record GroqFunction(String name, String arguments) {
     }
 }
