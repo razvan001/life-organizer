@@ -64,6 +64,41 @@ describe('NotesPage', () => {
     expect(screen.getByLabelText('Body')).toHaveValue('')
   })
 
+  it('confirms a created, an updated and a deleted note in a toast', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    let notes: NoteDto[] = []
+    mockApi({
+      'GET /api/notes': () => jsonResponse(notes),
+      'POST /api/notes': () => {
+        notes = [GYM]
+        return jsonResponse(GYM, 201)
+      },
+      'PUT /api/notes/1': () => jsonResponse({ ...GYM, body: 'new body' }),
+      'DELETE /api/notes/1': () => {
+        notes = []
+        return new Response(null, { status: 204 })
+      },
+    })
+    render(<NotesPage />)
+
+    await user.type(screen.getByLabelText('Title'), 'Gym')
+    await user.type(screen.getByLabelText('Body'), 'gym body')
+    await user.click(screen.getByRole('button', { name: 'Save note' }))
+    expect(await screen.findByRole('status')).toHaveTextContent('Note "Gym" saved')
+
+    await user.click(await screen.findByRole('button', { name: 'Gym' }))
+    await user.type(screen.getByLabelText('Body'), '!')
+    await user.click(screen.getByRole('button', { name: 'Save note' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Note "Gym" updated'))
+
+    await user.click(screen.getByRole('button', { name: 'Delete note' }))
+    await waitFor(() => expect(screen.getByRole('status')).toHaveTextContent('Note "Gym" deleted'))
+
+    await user.click(screen.getByRole('button', { name: 'Dismiss' }))
+    expect(screen.getByRole('status')).toHaveTextContent('')
+  })
+
   it('creates two notes in a row without clicking New note', async () => {
     const user = userEvent.setup()
     let notes: NoteDto[] = []

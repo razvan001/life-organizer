@@ -1,7 +1,8 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import { api, errorMessage } from '../api/client'
 import type { MemoryResult, NoteDto } from '../api/types'
 import { useApi } from '../api/useApi'
+import { ChangeToast } from '../components/ChangeToast'
 
 interface Draft {
   id: number | null
@@ -33,6 +34,10 @@ export function NotesPage() {
   const [draft, setDraft] = useState<Draft>(EMPTY)
   const [saved, setSaved] = useState<Draft>(EMPTY)
   const [touched, setTouched] = useState<Touched>(UNTOUCHED)
+  // Confirmation of the last save or delete, shown in the same toast the Today page uses.
+  const [notice, setNotice] = useState<string[]>([])
+  // Stable, so the toast's auto-hide timer is not restarted on every render.
+  const dismissNotice = useCallback(() => setNotice([]), [])
   const titleMissing = draft.title.trim() === ''
   const bodyMissing = draft.body.trim() === ''
   const [query, setQuery] = useState('')
@@ -78,6 +83,7 @@ export function NotesPage() {
       setDraft(next)
       setSaved(next)
       setTouched(UNTOUCHED)
+      setNotice([`Note "${savedNote.title}" ${creating ? 'saved' : 'updated'}`])
       refetch()
     })
   }
@@ -85,11 +91,13 @@ export function NotesPage() {
   function remove() {
     if (draft.id === null || !window.confirm('Delete this note?')) return
     const id = draft.id
+    const title = saved.title
     return run(async () => {
       await api.deleteNote(id)
       setDraft(EMPTY)
       setSaved(EMPTY)
       setTouched(UNTOUCHED)
+      setNotice([`Note "${title}" deleted`])
       refetch()
     })
   }
@@ -214,6 +222,7 @@ export function NotesPage() {
           Delete note
         </button>
       )}
+      <ChangeToast changes={notice} onDismiss={dismissNotice} />
     </section>
   )
 }
