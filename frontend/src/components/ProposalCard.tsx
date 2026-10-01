@@ -49,26 +49,27 @@ export function ProposalCard({ rationale, preview, currentBlocks, changes, statu
 
   return (
     <div className="proposal">
-      <p>{rationale}</p>
+      <p className="proposal-heading">Proposed changes</p>
+      <p className="proposal-rationale">{rationale}</p>
       {lines.length > 0 && (
-        <ul>
+        <ul className="proposal-lines">
           {lines.map((line, index) => (
             <li key={`${index}-${line}`}>{line}</li>
           ))}
         </ul>
       )}
       {changes.length > 0 && (
-        <ul>
+        <ul className="proposal-lines proposal-engine">
           {changes.map((change, index) => (
             <li key={`${index}-${change}`}>{change}</li>
           ))}
         </ul>
       )}
       {status && status !== 'PENDING' ? (
-        <p className="muted proposal-status">{STATUS_TEXT[status]}</p>
+        <span className={`status-pill status-${status.toLowerCase()}`}>{STATUS_TEXT[status]}</span>
       ) : (
-        <div className="block-actions">
-          <button type="button" disabled={busy} onClick={onApply}>
+        <div className="proposal-actions">
+          <button type="button" className="proposal-apply" disabled={busy} onClick={onApply}>
             Apply
           </button>
           <button type="button" disabled={busy} onClick={onReject}>

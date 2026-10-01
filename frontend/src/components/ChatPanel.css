@@ -1,34 +1,202 @@
-/* The assistant chat on the Today page. */
+/* The assistant chat on the Today page: a card with a header, a scrolling conversation and an input row. */
 
-.assistant {
+.chat-card {
   margin-top: 1.5rem;
-  padding-top: 1rem;
-  border-top: 1px solid #d9e2ec;
+  background: #fff;
+  border: 1px solid #d9e2ec;
+  border-radius: 12px;
+  overflow: hidden;
 }
 
-.assistant h3 {
-  margin: 0 0 0.5rem;
+.chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.7rem 1rem;
+  border-bottom: 1px solid #e4e7eb;
+}
+
+.chat-title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-title h3 {
+  margin: 0;
   font-size: 1rem;
 }
 
-.chat-messages {
-  list-style: none;
-  padding: 0;
-  margin: 0 0 0.75rem;
+.chat-avatar {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 50%;
+  color: #3c3489;
+  background: #eeedfe;
 }
 
-.chat-messages li {
-  margin-bottom: 0.5rem;
-}
-
-.chat-messages p {
-  margin: 0.25rem 0;
-}
-
-.chat-user p {
-  font-weight: 600;
+.chat-avatar svg,
+.chat-send svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 
 .chat-days select {
-  max-width: 12rem;
+  max-width: 10rem;
+  font-size: 0.85rem;
+}
+
+.chat-hint {
+  margin: 1rem 1rem 0;
+  font-size: 0.85rem;
+  color: #829ab1;
+}
+
+/* --- conversation ------------------------------------------------------------------------- */
+
+.chat-messages {
+  list-style: none;
+  margin: 0;
+  padding: 1rem;
+  max-height: 26rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.chat-messages:empty {
+  padding: 0.5rem 1rem;
+}
+
+.chat-user {
+  align-self: flex-end;
+  max-width: 75%;
+}
+
+.chat-assistant {
+  align-self: flex-start;
+  max-width: 85%;
+}
+
+.chat-bubble {
+  margin: 0;
+  padding: 0.5rem 0.8rem;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.chat-user .chat-bubble {
+  color: #0c447c;
+  background: #e6f1fb;
+  border-radius: 14px 14px 4px 14px;
+}
+
+.chat-assistant .chat-bubble {
+  color: #243b53;
+  background: #f0f4f8;
+  border-radius: 14px 14px 14px 4px;
+}
+
+/* three dots while the agent is working */
+.chat-typing {
+  display: inline-flex;
+  gap: 0.3rem;
+  align-items: center;
+  padding: 0.75rem 0.9rem;
+}
+
+.typing-dot {
+  width: 0.4rem;
+  height: 0.4rem;
+  border-radius: 50%;
+  background: #829ab1;
+  animation: typing-bounce 1.2s infinite ease-in-out;
+}
+
+.typing-dot:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.typing-dot:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.5;
+  }
+  30% {
+    transform: translateY(-0.25rem);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .typing-dot {
+    animation: none;
+  }
+}
+
+.chat-error {
+  margin: 0 1rem 0.75rem;
+  color: #b42318;
+}
+
+/* --- input row ---------------------------------------------------------------------------- */
+
+.chat-input {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  border-top: 1px solid #e4e7eb;
+}
+
+.chat-input input {
+  flex: 1;
+  box-sizing: border-box;
+  padding: 0.55rem 1rem;
+  font: inherit;
+  border: 1px solid #bcccdc;
+  border-radius: 999px;
+}
+
+.chat-input input:focus {
+  outline: none;
+  border-color: #486581;
+  box-shadow: 0 0 0 3px rgba(72, 101, 129, 0.2);
+}
+
+.chat-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.4rem;
+  height: 2.4rem;
+  margin: 0;
+  padding: 0;
+  border-radius: 50%;
+  color: #fff;
+  background: #534ab7;
+  border: 1px solid #534ab7;
+}
+
+.chat-send:hover:not(:disabled) {
+  background: #3c3489;
+}
+
+.chat-send:disabled {
+  color: #829ab1;
+  background: #f0f4f8;
+  border-color: #d9e2ec;
 }

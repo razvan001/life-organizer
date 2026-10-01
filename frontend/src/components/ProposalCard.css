@@ -1,9 +1,86 @@
 /* A proposed change set from the assistant, with Apply / Reject or its final status. */
 
 .proposal {
+  margin-top: 0.5rem;
+  padding: 0.6rem 0.8rem 0.7rem;
   background: #fff;
   border: 1px solid #d9e2ec;
-  border-radius: 4px;
-  padding: 0.5rem 0.75rem;
+  border-left: 3px solid #7f77dd;
+  border-radius: 0;
+}
+
+.proposal p {
+  margin: 0 0 0.35rem;
+}
+
+.proposal-heading {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: #534ab7;
+}
+
+.proposal-rationale {
+  color: #243b53;
+}
+
+.proposal-lines {
+  margin: 0.25rem 0 0.4rem;
+  padding-left: 1.1rem;
+  font-size: 0.85rem;
+  color: #486581;
+}
+
+.proposal-engine {
+  list-style: circle;
+}
+
+.proposal-actions {
+  display: flex;
+  gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+.proposal-actions button {
+  margin: 0;
+  border-radius: 999px;
+  padding: 0.35rem 1rem;
+}
+
+.proposal-actions .proposal-apply {
+  color: #fff;
+  background: #534ab7;
+  border-color: #534ab7;
+}
+
+.proposal-actions .proposal-apply:hover:not(:disabled) {
+  background: #3c3489;
+  border-color: #3c3489;
+}
+
+.proposal-actions button:disabled {
+  opacity: 0.6;
+}
+
+.status-pill {
+  display: inline-block;
+  margin-top: 0.4rem;
+  padding: 0.1rem 0.7rem;
+  font-size: 0.75rem;
+  border-radius: 999px;
+}
+
+.status-applied {
+  color: #27500a;
+  background: #eaf3de;
+}
+
+.status-rejected {
+  color: #444441;
+  background: #f1efe8;
+}
+
+.status-expired {
+  color: #633806;
+  background: #faeeda;
 }

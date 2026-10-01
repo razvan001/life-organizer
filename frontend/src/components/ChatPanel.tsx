@@ -111,28 +111,49 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
   const earlierDays = (days.data ?? []).filter((day) => day !== today)
   const readOnly = pastDay !== ''
   const messages = readOnly ? (pastThread ?? []) : (thread.data ?? [])
+  const showHint = !readOnly && thread.data !== null && messages.length === 0 && sending === null
+
+  // Keep the newest message in view inside the scrolling conversation area.
+  const conversationRef = useRef<HTMLUListElement>(null)
+  useEffect(() => {
+    const list = conversationRef.current
+    if (list) list.scrollTop = list.scrollHeight
+  }, [messages, sending])
 
   return (
-    <section className="assistant">
-      <h3>Assistant</h3>
-      {earlierDays.length > 0 && (
-        <div className="field chat-days">
-          <label htmlFor={pickerId}>Earlier chats</label>
-          <select id={pickerId} value={pastDay} onChange={(event) => setPastDay(event.target.value)}>
-            <option value="">Today</option>
-            {earlierDays.map((day) => (
-              <option key={day} value={day}>
-                {day}
-              </option>
-            ))}
-          </select>
+    <section className="assistant chat-card">
+      <header className="chat-header">
+        <div className="chat-title">
+          <span className="chat-avatar" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="16" height="16">
+              <path d="M12 3l1.8 4.6L18.5 9.4l-4.7 1.8L12 16l-1.8-4.8L5.5 9.4l4.7-1.8z" />
+              <path d="M18 15l.8 1.9 1.9.8-1.9.8L18 20.4l-.8-1.9-1.9-.8 1.9-.8z" />
+            </svg>
+          </span>
+          <h3>Assistant</h3>
         </div>
-      )}
+        {earlierDays.length > 0 && (
+          <div className="chat-days">
+            <label htmlFor={pickerId} className="visually-hidden">
+              Earlier chats
+            </label>
+            <select id={pickerId} value={pastDay} onChange={(event) => setPastDay(event.target.value)}>
+              <option value="">Today</option>
+              {earlierDays.map((day) => (
+                <option key={day} value={day}>
+                  {day}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </header>
 
-      <ul className="chat-messages" aria-label="Conversation">
+      {showHint && <p className="chat-hint">Try: padel got canceled and I'm tired</p>}
+      <ul className="chat-messages" aria-label="Conversation" aria-live="polite" ref={conversationRef}>
         {messages.map((message) => (
           <li key={message.id} className={message.role === 'USER' ? 'chat-user' : 'chat-assistant'}>
-            <p>{message.text}</p>
+            <p className="chat-bubble">{message.text}</p>
             {message.proposal && (
               <ProposalCard
                 rationale={message.proposal.rationale}
@@ -160,38 +181,56 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
         {!readOnly && sending !== null && (
           <>
             <li className="chat-user">
-              <p>{sending}</p>
+              <p className="chat-bubble">{sending}</p>
             </li>
-            <li className="chat-assistant muted">
-              <p>Thinking…</p>
+            <li className="chat-assistant">
+              <p className="chat-bubble chat-typing">
+                <span className="typing-dot" aria-hidden="true" />
+                <span className="typing-dot" aria-hidden="true" />
+                <span className="typing-dot" aria-hidden="true" />
+                <span className="visually-hidden">Thinking…</span>
+              </p>
             </li>
           </>
         )}
       </ul>
-      {error && <p role="alert">{error}</p>}
-      {thread.error != null && !thread.data && <p role="alert">{errorMessage(thread.error)}</p>}
+      {error && (
+        <p role="alert" className="chat-error">
+          {error}
+        </p>
+      )}
+      {thread.error != null && !thread.data && (
+        <p role="alert" className="chat-error">
+          {errorMessage(thread.error)}
+        </p>
+      )}
 
       {!readOnly && (
         <form
+          className="chat-input"
           onSubmit={(event) => {
             event.preventDefault()
             send()
           }}
         >
-          <div className="field">
-            <label htmlFor={inputId}>Message the assistant</label>
-            <input
-              id={inputId}
-              ref={inputRef}
-              type="text"
-              maxLength={2000}
-              value={input}
-              disabled={busy}
-              onChange={(event) => setInput(event.target.value)}
-            />
-          </div>
-          <button type="submit" disabled={busy || !input.trim()}>
-            Send
+          <label htmlFor={inputId} className="visually-hidden">
+            Message the assistant
+          </label>
+          <input
+            id={inputId}
+            ref={inputRef}
+            type="text"
+            maxLength={2000}
+            placeholder="Tell the assistant what changed"
+            value={input}
+            disabled={busy}
+            onChange={(event) => setInput(event.target.value)}
+          />
+          <button type="submit" className="chat-send" aria-label="Send" disabled={busy || !input.trim()}>
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+              <path d="M4 12l16-8-6 16-2.5-6.5z" />
+              <path d="M11.5 13.5L20 4" />
+            </svg>
           </button>
         </form>
       )}

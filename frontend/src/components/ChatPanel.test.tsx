@@ -51,6 +51,36 @@ describe('ChatPanel', () => {
     expect(screen.queryByLabelText('Earlier chats')).not.toBeInTheDocument()
   })
 
+  it('suggests what to type when today has no conversation yet', async () => {
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse([]),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
+    })
+
+    renderPanel()
+
+    expect(await screen.findByText(/Try: padel got canceled and I'm tired/)).toBeInTheDocument()
+    const input = screen.getByLabelText('Message the assistant')
+    expect(input).toHaveAttribute('placeholder', 'Tell the assistant what changed')
+    expect(screen.getByText('Message the assistant', { selector: 'label' })).toHaveClass('visually-hidden')
+  })
+
+  it('announces new messages and keeps the Thinking text for screen readers', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse([]),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
+      'POST /api/assistant/chat/messages': () => new Promise<Response>(() => {}),
+    })
+    renderPanel()
+
+    await user.type(await screen.findByLabelText('Message the assistant'), 'hi')
+    await user.click(screen.getByRole('button', { name: 'Send' }))
+
+    expect(screen.getByRole('list', { name: 'Conversation' })).toHaveAttribute('aria-live', 'polite')
+    expect(await screen.findByText('Thinking…')).toHaveClass('visually-hidden')
+  })
+
   it('sends a message, shows it while the agent thinks, then shows the saved thread', async () => {
     const user = userEvent.setup()
     let thread: ChatMessageDto[] = []

@@ -30,6 +30,17 @@ describe('ProposalCard', () => {
     expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument()
   })
 
+  it('shows a decided proposal as a status pill instead of buttons', () => {
+    render(
+      <ProposalCard rationale="x" events={[]} changes={[]} preview={preview(CURRENT)} currentBlocks={CURRENT}
+        status="APPLIED" busy={false} onApply={vi.fn()} onReject={vi.fn()} />,
+    )
+
+    expect(screen.getByText('Applied')).toHaveClass('status-pill', 'status-applied')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+    expect(screen.getByText('Proposed changes')).toBeInTheDocument()
+  })
+
   it('shows one line for a block whose status changed', () => {
     const changed = [makeBlock({ id: 'padel-1', title: 'Padel', status: 'CANCELLED', start: '19:00', end: '20:00' })]
 
