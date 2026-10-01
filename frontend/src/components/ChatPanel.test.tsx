@@ -155,4 +155,79 @@ describe('ChatPanel', () => {
     await user.selectOptions(screen.getByLabelText('Earlier chats'), '')
     expect(await screen.findByLabelText('Message the assistant')).toBeInTheDocument()
   })
+
+  it('reloads the thread after a failed apply so a stale proposal loses its buttons', async () => {
+    const user = userEvent.setup()
+    let thread = THREAD
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse(thread),
+      'GET /api/assistant/chat/days': () => jsonResponse(['2026-09-14']),
+      'POST /api/assistant/chat/messages/2/apply': () => {
+        thread = [THREAD[0], { ...PENDING, proposal: { ...PENDING.proposal!, status: 'EXPIRED' } }]
+        return problemResponse(409, 'Proposal not available', 'This proposal is expired and can no longer be used')
+      },
+    })
+    const onApplied = renderPanel()
+
+    await user.click(await screen.findByRole('button', { name: 'Apply' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This proposal is expired and can no longer be used')
+    expect(await screen.findByText('Expired (a newer message came in)')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
+    expect(onApplied).not.toHaveBeenCalled()
+  })
+
+  it("loads the new day's thread when today moves on", async () => {
+    const user = userEvent.setup()
+    let thread = THREAD
+    let days = ['2026-09-14', '2026-09-13']
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse(thread),
+      'GET /api/assistant/chat/days': () => jsonResponse(days),
+      'GET /api/assistant/chat?date=2026-09-13': () => jsonResponse([message({ date: '2026-09-13', text: 'old question' })]),
+    })
+    const { rerender } = render(<ChatPanel today="2026-09-14" currentBlocks={TODAY.blocks} busy={false} onApplied={vi.fn()} />)
+    expect(await screen.findByText('gym is off')).toBeInTheDocument()
+    await user.selectOptions(await screen.findByLabelText('Earlier chats'), '2026-09-13')
+    expect(await screen.findByText('old question')).toBeInTheDocument()
+
+    thread = [message({ id: 5, date: '2026-09-15', text: 'a new day' })]
+    days = ['2026-09-15', '2026-09-14']
+    rerender(<ChatPanel today="2026-09-15" currentBlocks={TODAY.blocks} busy={false} onApplied={vi.fn()} />)
+
+    expect(await screen.findByText('a new day')).toBeInTheDocument()
+    expect(screen.queryByText('gym is off')).not.toBeInTheDocument()
+    expect(screen.queryByText('old question')).not.toBeInTheDocument()
+    expect(await screen.findByLabelText('Message the assistant')).toBeInTheDocument()
+    expect(await screen.findByRole('option', { name: '2026-09-14' })).toBeInTheDocument()
+  })
+
+  it('does not keep the previous earlier day on screen while the next one loads', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse([]),
+      'GET /api/assistant/chat/days': () => jsonResponse(['2026-09-14', '2026-09-13', '2026-09-12']),
+      'GET /api/assistant/chat?date=2026-09-13': () => jsonResponse([message({ date: '2026-09-13', text: 'thirteenth' })]),
+      'GET /api/assistant/chat?date=2026-09-12': () => new Promise<Response>(() => {}),
+    })
+    renderPanel()
+
+    await user.selectOptions(await screen.findByLabelText('Earlier chats'), '2026-09-13')
+    expect(await screen.findByText('thirteenth')).toBeInTheDocument()
+
+    await user.selectOptions(screen.getByLabelText('Earlier chats'), '2026-09-12')
+
+    await waitFor(() => expect(screen.queryByText('thirteenth')).not.toBeInTheDocument())
+  })
+
+  it('shows an error when the thread cannot be loaded', async () => {
+    mockApi({
+      'GET /api/assistant/chat': () => problemResponse(500, 'Unexpected error', 'Something went wrong'),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
+    })
+
+    renderPanel()
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong')
+  })
 })

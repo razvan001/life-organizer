@@ -1,4 +1,4 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { api, errorMessage } from '../api/client'
 import type { ApplyEventsResponse, BlockDto, ChatMessageDto } from '../api/types'
 import { useApi } from '../api/useApi'
@@ -27,11 +27,22 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
   const pickerId = useId()
   const busy = pageBusy || sending !== null || working
 
+  // A tab can stay open past midnight: when the page's day moves on, the saved thread and the day list
+  // are reloaded and any earlier day on screen gives way to the new Today.
+  const shownToday = useRef(today)
+  const refetchThread = thread.refetch
+  const refetchDays = days.refetch
   useEffect(() => {
-    if (!pastDay) {
-      setPastThread(null)
-      return
-    }
+    if (shownToday.current === today) return
+    shownToday.current = today
+    setPastDay('')
+    refetchThread()
+    refetchDays()
+  }, [today, refetchThread, refetchDays])
+
+  useEffect(() => {
+    setPastThread(null) // never keep the previous day's messages while the next day loads
+    if (!pastDay) return
     let cancelled = false
     api.getChat(pastDay).then(
       (messages) => {
@@ -70,11 +81,18 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
   async function act(action: () => Promise<void>) {
     setWorking(true)
     setError(null)
+    let failed = false
     try {
       await action()
+    } catch (failure) {
+      failed = true
+      setError(errorMessage(failure))
+    }
+    // Reload even after a failure: the proposal may have been applied or expired elsewhere (409).
+    try {
       await reloadThread()
     } catch (failure) {
-      setError(errorMessage(failure))
+      if (!failed) setError(errorMessage(failure)) // otherwise keep the action's own error
     } finally {
       setWorking(false)
     }
@@ -141,6 +159,7 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
         )}
       </ul>
       {error && <p role="alert">{error}</p>}
+      {thread.error != null && !thread.data && <p role="alert">{errorMessage(thread.error)}</p>}
 
       {!readOnly && (
         <form
