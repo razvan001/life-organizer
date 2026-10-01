@@ -55,6 +55,20 @@ public class SetupStore {
             .toList();
     }
 
+    /** Changes only the priorities of the named goals; categories, other goal fields and constraints stay as they are. */
+    @Transactional
+    public void updatePriorities(Map<String, Integer> priorityByGoalId) {
+        for (Map.Entry<String, Integer> entry : priorityByGoalId.entrySet()) {
+            int priority = entry.getValue();
+            if (priority < 1 || priority > 5) {
+                throw new IllegalArgumentException("priority must be between 1 and 5, was " + priority);
+            }
+            GoalEntity goal = goals.findById(entry.getKey())
+                .orElseThrow(() -> new IllegalArgumentException("Unknown goal '" + entry.getKey() + "'"));
+            goal.setPriority(priority);
+        }
+    }
+
     /**
      * Replaces the whole setup. Child rows are deleted first (constraints reference goals and
      * categories, goals reference categories). Never touches block or day_warning rows.

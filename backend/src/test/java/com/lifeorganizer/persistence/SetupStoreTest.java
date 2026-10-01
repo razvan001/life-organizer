@@ -20,6 +20,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -88,5 +90,33 @@ class SetupStoreTest {
         assertThatThrownBy(() -> store.replace(bad, List.of()))
             .isInstanceOf(IllegalArgumentException.class)
             .hasMessageContaining("unknown category");
+    }
+
+    @Test
+    void updatePrioritiesChangesOnlyTheNamedGoals() {
+        store.replace(ExampleSetup.tree(), ExampleSetup.constraints());
+        flushAndClear();
+
+        store.updatePriorities(Map.of("career-system-design", 5, "hobbies-chess", 1));
+        flushAndClear();
+
+        Map<String, Integer> priorities = store.loadTree().goals().stream()
+            .collect(Collectors.toMap(Goal::id, Goal::priority));
+        assertThat(priorities).containsEntry("career-system-design", 5).containsEntry("hobbies-chess", 1)
+            .containsEntry("career-claude-certification", 3);
+        assertThat(store.loadConstraints()).isEqualTo(ExampleSetup.constraints());
+        assertThat(store.loadTree().goals()).extracting(Goal::id)
+            .isEqualTo(ExampleSetup.tree().goals().stream().map(Goal::id).toList());
+    }
+
+    @Test
+    void updatePrioritiesRejectsUnknownGoalsAndBadValues() {
+        store.replace(ExampleSetup.tree(), ExampleSetup.constraints());
+        flushAndClear();
+
+        assertThatThrownBy(() -> store.updatePriorities(Map.of("nope", 2)))
+            .isInstanceOf(IllegalArgumentException.class).hasMessage("Unknown goal 'nope'");
+        assertThatThrownBy(() -> store.updatePriorities(Map.of("hobbies-chess", 6)))
+            .isInstanceOf(IllegalArgumentException.class).hasMessage("priority must be between 1 and 5, was 6");
     }
 }
