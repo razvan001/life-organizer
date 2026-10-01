@@ -1,7 +1,62 @@
-/* Notes page: memory search results, the notes list, and the note editor's field help. */
+/* Notes page: memory search, the sticky-note board, and the note editor's field help. */
 
-.memory-results,
-.note-list {
+/* --- memory search ------------------------------------------------------------------------ */
+
+.memory-search {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin: 1rem auto 1.5rem;
+  max-width: 34rem;
+}
+
+.search-field {
+  position: relative;
+  flex: 1;
+}
+
+.search-icon {
+  position: absolute;
+  top: 50%;
+  left: 0.9rem;
+  transform: translateY(-50%);
+  fill: none;
+  stroke: #829ab1;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: none;
+}
+
+.search-field input {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 0.6rem 1rem 0.6rem 2.5rem;
+  font: inherit;
+  border: 1px solid #bcccdc;
+  border-radius: 999px;
+  background: #fff;
+}
+
+.search-field input:focus {
+  outline: none;
+  border-color: #486581;
+  box-shadow: 0 0 0 3px rgba(72, 101, 129, 0.2);
+}
+
+.search-field input:focus + .search-icon,
+.search-field:focus-within .search-icon {
+  stroke: #486581;
+}
+
+.memory-search button {
+  margin: 0;
+  border-radius: 999px;
+  padding: 0.55rem 1.1rem;
+}
+
+.memory-results {
   list-style: none;
   padding: 0;
 }
@@ -14,11 +69,148 @@
   margin: 0.25rem 0;
 }
 
-/* the note currently open in the editor */
-.note-list li.selected button {
-  font-weight: 600;
-  border-color: currentColor;
+.notes-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
 }
+
+/* --- sticky-note board ------------------------------------------------------------------- */
+
+.sticky-board {
+  list-style: none;
+  padding: 0.75rem 0 0;
+  margin: 0.5rem 0 1.5rem;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(10rem, 1fr));
+  gap: 1.5rem 1.25rem;
+}
+
+.sticky {
+  --sticky-bg: #faeeda;
+  --sticky-ink: #633806;
+  --sticky-soft: #854f0b;
+  --sticky-pin: #d85a30;
+  --sticky-tilt: 0deg;
+}
+
+.sticky-yellow {
+  --sticky-bg: #faeeda;
+  --sticky-ink: #633806;
+  --sticky-soft: #854f0b;
+  --sticky-pin: #d85a30;
+}
+
+.sticky-pink {
+  --sticky-bg: #fbeaf0;
+  --sticky-ink: #72243e;
+  --sticky-soft: #993556;
+  --sticky-pin: #534ab7;
+}
+
+.sticky-green {
+  --sticky-bg: #e1f5ee;
+  --sticky-ink: #085041;
+  --sticky-soft: #0f6e56;
+  --sticky-pin: #d85a30;
+}
+
+.sticky-tilt-0 { --sticky-tilt: -2deg; }
+.sticky-tilt-1 { --sticky-tilt: 1.5deg; }
+.sticky-tilt-2 { --sticky-tilt: -1deg; }
+.sticky-tilt-3 { --sticky-tilt: 2deg; }
+
+.sticky-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: 8rem;
+  margin: 0;
+  padding: 1.4rem 0.9rem 0.75rem;
+  text-align: left;
+  font: inherit;
+  color: var(--sticky-ink);
+  background: var(--sticky-bg);
+  border: none;
+  border-radius: 2px;
+  box-shadow: 0 2px 4px rgba(16, 42, 67, 0.12);
+  transform: rotate(var(--sticky-tilt));
+  transition: transform 120ms ease-out, box-shadow 120ms ease-out;
+  cursor: pointer;
+}
+
+.sticky-card:hover:not(:disabled),
+.sticky-card:focus-visible {
+  transform: rotate(0deg) translateY(-3px);
+  box-shadow: 0 6px 12px rgba(16, 42, 67, 0.18);
+}
+
+.sticky-card:focus-visible {
+  outline: 2px solid var(--sticky-soft);
+  outline-offset: 3px;
+}
+
+.sticky-card:disabled {
+  cursor: default;
+}
+
+/* the note currently open in the editor */
+.sticky.selected .sticky-card {
+  outline: 2px solid var(--sticky-soft);
+  outline-offset: 3px;
+}
+
+.sticky-pin {
+  position: absolute;
+  top: -0.45rem;
+  left: 50%;
+  width: 0.9rem;
+  height: 0.9rem;
+  margin-left: -0.45rem;
+  border-radius: 50%;
+  background: var(--sticky-pin);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+}
+
+.sticky-title {
+  font-weight: 600;
+  font-size: 1rem;
+  overflow-wrap: anywhere;
+}
+
+.sticky-body {
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: var(--sticky-soft);
+  overflow-wrap: anywhere;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.sticky-date {
+  margin-top: auto;
+  font-size: 0.75rem;
+  color: var(--sticky-soft);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sticky-card {
+    transition: none;
+  }
+
+  .sticky-card:hover:not(:disabled),
+  .sticky-card:focus-visible {
+    transform: rotate(var(--sticky-tilt));
+  }
+}
+
+/* --- note editor -------------------------------------------------------------------------- */
 
 .field-help {
   display: flex;

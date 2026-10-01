@@ -25,6 +25,15 @@ interface Touched {
 
 const UNTOUCHED: Touched = { title: false, body: false }
 
+const STICKY_COLORS = ['yellow', 'pink', 'green'] as const
+const STICKY_TILTS = 4
+
+/** A note keeps its colour and tilt: both come from its id, not from its position in the list. */
+function stickyClasses(id: number, open: boolean): string {
+  const color = STICKY_COLORS[id % STICKY_COLORS.length]
+  return `sticky sticky-${color} sticky-tilt-${id % STICKY_TILTS}${open ? ' selected' : ''}`
+}
+
 function toDraft(note: NoteDto): Draft {
   return { id: note.id, title: note.title, body: note.body }
 }
@@ -117,14 +126,30 @@ export function NotesPage() {
       <h2>Notes</h2>
 
       <form
+        role="search"
+        className="memory-search"
         onSubmit={(event) => {
           event.preventDefault()
           search()
         }}
       >
-        <div className="field">
-          <label htmlFor="memory-query">Search your notes and past days</label>
-          <input id="memory-query" type="search" maxLength={500} value={query} onChange={(e) => setQuery(e.target.value)} />
+        {/* the hint lives in the placeholder; the label stays for screen readers */}
+        <label htmlFor="memory-query" className="visually-hidden">
+          Search your notes and past days
+        </label>
+        <div className="search-field">
+          <svg className="search-icon" aria-hidden="true" viewBox="0 0 24 24" width="18" height="18">
+            <circle cx="11" cy="11" r="7" />
+            <path d="m20 20-3.5-3.5" />
+          </svg>
+          <input
+            id="memory-query"
+            type="search"
+            maxLength={500}
+            placeholder="Search your notes and past days"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+          />
         </div>
         <button type="submit" disabled={busy || query.trim() === ''}>
           Search
@@ -150,29 +175,36 @@ export function NotesPage() {
         </ul>
       )}
 
-      <h3>Your notes</h3>
+      <div className="notes-header">
+        <h3>Your notes</h3>
+        <button type="button" disabled={busy} onClick={() => replaceDraft(EMPTY)}>
+          New note
+        </button>
+      </div>
       {loadError != null && notes === null && <p role="alert">{errorMessage(loadError)}</p>}
       {notes && notes.length === 0 && <p className="muted">No notes yet.</p>}
       {notes && notes.length > 0 && (
-        <ul className="note-list">
+        <ul className="sticky-board" aria-label="Your notes">
           {notes.map((note) => (
-            <li key={note.id} className={note.id === draft.id ? 'selected' : undefined}>
+            <li key={note.id} className={stickyClasses(note.id, note.id === draft.id)}>
+              {/* the accessible name is the title alone; the preview and date are there to look at */}
               <button
                 type="button"
+                className="sticky-card"
+                aria-label={note.title}
                 disabled={busy}
                 aria-current={note.id === draft.id ? 'true' : undefined}
                 onClick={() => replaceDraft(toDraft(note))}
               >
-                {note.title}
-              </button>{' '}
-              <span className="muted">{new Date(note.updatedAt).toLocaleDateString()}</span>
+                <span className="sticky-pin" aria-hidden="true" />
+                <span className="sticky-title">{note.title}</span>
+                <span className="sticky-body">{note.body}</span>
+                <span className="sticky-date">{new Date(note.updatedAt).toLocaleDateString()}</span>
+              </button>
             </li>
           ))}
         </ul>
       )}
-      <button type="button" disabled={busy} onClick={() => replaceDraft(EMPTY)}>
-        New note
-      </button>
 
       <h3>{draft.id === null ? 'New note' : 'Edit note'}</h3>
       <div className="field">

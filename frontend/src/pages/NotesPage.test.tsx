@@ -39,6 +39,28 @@ describe('NotesPage', () => {
     expect(await screen.findByRole('button', { name: 'Gym' })).toBeInTheDocument()
   })
 
+  it('puts the search hint inside the search box instead of above it', async () => {
+    mockApi({ 'GET /api/notes': () => jsonResponse([]) })
+
+    render(<NotesPage />)
+
+    const box = await screen.findByRole('searchbox', { name: 'Search your notes and past days' })
+    expect(box).toHaveAttribute('placeholder', 'Search your notes and past days')
+    expect(screen.getByText('Search your notes and past days', { selector: 'label' })).toHaveClass('visually-hidden')
+    expect(within(screen.getByRole('search')).getByRole('button', { name: 'Search' })).toBeInTheDocument()
+  })
+
+  it('shows each note as a sticky card with a body preview and the date', async () => {
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM]) })
+
+    render(<NotesPage />)
+
+    const board = await screen.findByRole('list', { name: 'Your notes' })
+    const card = within(board).getByRole('button', { name: 'Gym' })
+    expect(card).toHaveTextContent("after gym I can't focus on study")
+    expect(card).toHaveTextContent(new Date(GYM.updatedAt).toLocaleDateString())
+  })
+
   it('creates a note and shows it in the list', async () => {
     const user = userEvent.setup()
     let notes: NoteDto[] = []
