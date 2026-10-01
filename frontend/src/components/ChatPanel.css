@@ -1,0 +1,34 @@
+/* The assistant chat on the Today page. */
+
+.assistant {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #d9e2ec;
+}
+
+.assistant h3 {
+  margin: 0 0 0.5rem;
+  font-size: 1rem;
+}
+
+.chat-messages {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+}
+
+.chat-messages li {
+  margin-bottom: 0.5rem;
+}
+
+.chat-messages p {
+  margin: 0.25rem 0;
+}
+
+.chat-user p {
+  font-weight: 600;
+}
+
+.chat-days select {
+  max-width: 12rem;
+}

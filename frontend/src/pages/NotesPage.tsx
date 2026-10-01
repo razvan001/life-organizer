@@ -3,6 +3,7 @@ import { api, errorMessage } from '../api/client'
 import type { MemoryResult, NoteDto } from '../api/types'
 import { useApi } from '../api/useApi'
 import { ChangeToast } from '../components/ChangeToast'
+import './NotesPage.css'
 
 interface Draft {
   id: number | null

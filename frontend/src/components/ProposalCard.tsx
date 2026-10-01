@@ -1,4 +1,5 @@
 import type { BlockDto, ProposalStatus, TodayPlanResponse, ProposedEventDto } from '../api/types'
+import './ProposalCard.css'
 
 interface Props {
   rationale: string

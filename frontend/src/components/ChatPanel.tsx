@@ -3,6 +3,7 @@ import { api, errorMessage } from '../api/client'
 import type { ApplyEventsResponse, BlockDto, ChatMessageDto } from '../api/types'
 import { useApi } from '../api/useApi'
 import { ProposalCard } from './ProposalCard'
+import './ChatPanel.css'
 
 interface Props {
   /** today's date (yyyy-MM-dd), from the plan on screen */
