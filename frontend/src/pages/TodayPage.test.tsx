@@ -207,18 +207,20 @@ describe('TodayPage', () => {
     await waitFor(() => expect(screen.getAllByRole('button', { name: 'Done' })[0]).toBeEnabled())
   })
 
-  it('shows the assistant box only when the backend reports aiEnabled', async () => {
+  it('shows the assistant chat only when the backend reports aiEnabled', async () => {
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
-      'GET /api/config': () => jsonResponse({ aiEnabled: true, ragEnabled: false }),
+      'GET /api/config': () => jsonResponse({ aiEnabled: true, ragEnabled: true }),
+      'GET /api/assistant/chat': () => jsonResponse([]),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
     })
 
     renderToday()
 
-    expect(await screen.findByLabelText('Tell it what changed')).toBeInTheDocument()
+    expect(await screen.findByLabelText('Message the assistant')).toBeInTheDocument()
   })
 
-  it('does not show the assistant box when aiEnabled is false', async () => {
+  it('does not show the assistant chat when aiEnabled is false', async () => {
     mockApi({
       'GET /api/plan/today': () => jsonResponse(TODAY),
       'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
@@ -227,7 +229,7 @@ describe('TodayPage', () => {
     renderToday()
 
     await screen.findByRole('heading', { name: "Today's plan" })
-    expect(screen.queryByLabelText('Tell it what changed')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Message the assistant')).not.toBeInTheDocument()
   })
 })
 

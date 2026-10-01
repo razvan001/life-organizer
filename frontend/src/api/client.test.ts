@@ -64,15 +64,11 @@ describe('api client', () => {
     expect(await api.getConfig()).toEqual({ aiEnabled: true, ragEnabled: false })
   })
 
-  it('posts a command as JSON and returns the proposal', async () => {
-    const fetchMock = mockApi({
-      'POST /api/assistant/command': () =>
-        jsonResponse({ understood: true, rationale: 'ok', message: null, events: [], preview: TODAY, changes: [] }),
-    })
+  it('posts a chat message as JSON', async () => {
+    const reply = { id: 7, date: '2026-09-14', role: 'ASSISTANT', text: 'Hi', proposal: null, createdAt: 'x' }
+    const fetchMock = mockApi({ 'POST /api/assistant/chat/messages': () => jsonResponse(reply) })
 
-    const result = await api.proposeCommand({ text: 'padel got canceled' })
-
-    expect(result.understood).toBe(true)
+    expect(await api.sendChatMessage({ text: 'padel got canceled' })).toEqual(reply)
     const init = fetchMock.mock.calls[0][1] as RequestInit
     expect(JSON.parse(init.body as string)).toEqual({ text: 'padel got canceled' })
   })

@@ -1,4 +1,4 @@
-import type { BlockDto, TodayPlanResponse, ProposedEventDto } from '../api/types'
+import type { BlockDto, ProposalStatus, TodayPlanResponse, ProposedEventDto } from '../api/types'
 
 interface Props {
   rationale: string
@@ -7,9 +7,17 @@ interface Props {
   currentBlocks: BlockDto[]
   /** The engine's own change/refusal messages (e.g. "No room this week to reschedule Gym"). */
   changes: string[]
+  /** When set and not PENDING, the buttons give way to the outcome. */
+  status?: ProposalStatus
   busy: boolean
   onApply: () => void
   onReject: () => void
+}
+
+const STATUS_TEXT: Record<Exclude<ProposalStatus, 'PENDING'>, string> = {
+  APPLIED: 'Applied',
+  REJECTED: 'Rejected',
+  EXPIRED: 'Expired (a newer message came in)',
 }
 
 const STATUS_LABEL: Record<string, string> = {
@@ -35,7 +43,7 @@ function diffLines(currentBlocks: BlockDto[], previewBlocks: BlockDto[]): string
 }
 
 /** The rationale plus a diff, shown after a command is understood. Apply resends the exact events. */
-export function ProposalCard({ rationale, preview, currentBlocks, changes, busy, onApply, onReject }: Props) {
+export function ProposalCard({ rationale, preview, currentBlocks, changes, status, busy, onApply, onReject }: Props) {
   const lines = diffLines(currentBlocks, preview.blocks)
 
   return (
@@ -55,14 +63,18 @@ export function ProposalCard({ rationale, preview, currentBlocks, changes, busy,
           ))}
         </ul>
       )}
-      <div className="block-actions">
-        <button type="button" disabled={busy} onClick={onApply}>
-          Apply
-        </button>
-        <button type="button" disabled={busy} onClick={onReject}>
-          Reject
-        </button>
-      </div>
+      {status && status !== 'PENDING' ? (
+        <p className="muted proposal-status">{STATUS_TEXT[status]}</p>
+      ) : (
+        <div className="block-actions">
+          <button type="button" disabled={busy} onClick={onApply}>
+            Apply
+          </button>
+          <button type="button" disabled={busy} onClick={onReject}>
+            Reject
+          </button>
+        </div>
+      )}
     </div>
   )
 }

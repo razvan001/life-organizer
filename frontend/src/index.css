@@ -281,3 +281,25 @@ textarea {
   font-weight: 600;
   border-color: currentColor;
 }
+
+.chat-messages {
+  list-style: none;
+  padding: 0;
+  margin: 0 0 0.75rem;
+}
+
+.chat-messages li {
+  margin-bottom: 0.5rem;
+}
+
+.chat-messages p {
+  margin: 0.25rem 0;
+}
+
+.chat-user p {
+  font-weight: 600;
+}
+
+.chat-days select {
+  max-width: 12rem;
+}

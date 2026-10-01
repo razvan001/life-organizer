@@ -98,7 +98,7 @@ export interface ConfigResponse {
   ragEnabled: boolean
 }
 
-/** One event Claude proposes; the exact shape the backend replays on Apply. */
+/** One event the assistant proposes; the exact shape the backend replays on Apply. */
 export interface ProposedEventDto {
   type: 'CANCEL_BLOCK' | 'POSTPONE_BLOCK' | 'MARK_DONE' | 'SET_ENERGY' | 'ADD_ADHOC'
   blockId: string | null
@@ -110,17 +110,28 @@ export interface ProposedEventDto {
   energy: string | null
 }
 
-export interface CommandRequest {
-  text: string
+export type ProposalStatus = 'PENDING' | 'APPLIED' | 'REJECTED' | 'EXPIRED'
+
+export interface ProposalDto {
+  rationale: string
+  events: ProposedEventDto[]
+  changes: string[]
+  preview: TodayPlanResponse
+  status: ProposalStatus
 }
 
-export interface CommandResponse {
-  understood: boolean
-  rationale: string | null
-  message: string | null
-  events: ProposedEventDto[]
-  preview: TodayPlanResponse | null
-  changes: string[]
+export interface ChatMessageDto {
+  id: number
+  /** the thread's day, yyyy-MM-dd */
+  date: string
+  role: 'USER' | 'ASSISTANT'
+  text: string
+  proposal: ProposalDto | null
+  createdAt: string
+}
+
+export interface SendMessageRequest {
+  text: string
 }
 
 export interface ApplyEventsRequest {

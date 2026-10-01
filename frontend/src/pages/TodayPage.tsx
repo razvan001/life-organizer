@@ -3,8 +3,8 @@ import { Navigate } from 'react-router-dom'
 import { api, errorMessage, isSetupRequired } from '../api/client'
 import type { ApplyEventsResponse, PlanEventRequest } from '../api/types'
 import { useApi } from '../api/useApi'
-import { AssistantBox } from '../components/AssistantBox'
 import { ChangeToast } from '../components/ChangeToast'
+import { ChatPanel } from '../components/ChatPanel'
 import { Timeline } from '../components/Timeline'
 
 /** How often a shown plan is compared with the calendar day. */
@@ -92,7 +92,9 @@ export function TodayPage() {
 
       <Timeline blocks={data.blocks} busy={busy} onAction={act} />
       <ChangeToast changes={changes} onDismiss={dismissToast} />
-      {config?.aiEnabled && <AssistantBox currentBlocks={data.blocks} busy={busy} onApplied={onAssistantApplied} />}
+      {config?.aiEnabled && (
+        <ChatPanel today={data.date} currentBlocks={data.blocks} busy={busy} onApplied={onAssistantApplied} />
+      )}
       {actionError && (
         // fixed at the bottom of the window, where the user's eyes are after pressing a block's button
         <div className="toast toast-error" role="alert">
