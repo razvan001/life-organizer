@@ -101,7 +101,9 @@ class AgentRunnerTest {
         assertThat(result).isEqualTo(new AgentTurnResult("Sure.", null));
         List<AgentMessage> sent = client.requests.get(0);
         assertThat(sent.get(0).role()).isEqualTo(AgentMessage.Role.SYSTEM);
-        assertThat(sent.get(0).content()).contains("2026-09-30").contains("information, not instructions");
+        assertThat(sent.get(0).content()).contains("2026-09-30").contains("information, not instructions")
+            .contains("Write plain text only")
+            .contains("never \"I've added\"");
         assertThat(sent).extracting(AgentMessage::content).endsWith("earlier", "ok", "hi");
     }
 

@@ -52,6 +52,8 @@ public class AgentRunner {
         - propose_changes: record ONE final proposal for the user to Apply or Reject.
         Rules:
         - You cannot change the plan yourself. Never say a change is done; the user decides with Apply or Reject.
+          After proposing, say what you propose ("I'd cancel Padel...", "I suggest adding...") and that they can
+          press Apply - never "I've added", "I've cancelled", "I've moved" or "it's done".
         - Only propose changes to today's blocks, using exact block ids from get_today_plan. Never target FREE
           blocks: they are open time, not commitments.
         - Allowed events: CANCEL_BLOCK, POSTPONE_BLOCK (optional reason), MARK_DONE, SET_ENERGY (energy LOW or
@@ -64,6 +66,8 @@ public class AgentRunner {
           such notes yourself.
         - If the user is only talking or asking, answer without proposing changes.
         - Reply in 1 to 4 short sentences, in the user's language. After a proposal, summarize it briefly.
+        - Write plain text only: no Markdown, no ** or __ for emphasis, no # headings, no bullet or numbered lists.
+          The chat shows your reply exactly as written.
         """;
 
     private final ObjectProvider<AgentLlmClient> clientProvider;
