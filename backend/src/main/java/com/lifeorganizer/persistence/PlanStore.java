@@ -68,6 +68,19 @@ public class PlanStore {
         }
     }
 
+    /**
+     * Removes a stored day (blocks and warnings) so it can be generated again. Entity deletes plus a flush (not a
+     * bulk JPQL delete) keep the persistence context consistent: the caller re-inserts blocks with the same ids
+     * and may hold other managed entities (e.g. the chat message being applied).
+     */
+    @Transactional
+    public void deleteDay(LocalDate date) {
+        blocks.deleteAll(blocks.findByDateOrderByStartTimeAscIdAsc(date));
+        blocks.flush();
+        warnings.deleteByDate(date);
+        warnings.flush();
+    }
+
     @Transactional
     public void applyChanges(Map<LocalDate, DayPlan> before, Map<LocalDate, DayPlan> after) {
         for (Map.Entry<LocalDate, DayPlan> entry : after.entrySet()) {
