@@ -120,8 +120,8 @@ public class ChatService {
         ProposalDto proposal = null;
         if (message.getProposal() != null) {
             Proposal decoded = decode(message.getProposal());
-            proposal = new ProposalDto(decoded.rationale(), decoded.events(), decoded.changes(), decoded.preview(),
-                message.getProposalStatus());
+            proposal = new ProposalDto(decoded.kind().name(), decoded.rationale(), decoded.events(), decoded.changes(),
+                decoded.preview(), decoded.priorityChanges(), message.getProposalStatus());
         }
         return new ChatMessageDto(message.getId(), message.getChatDate().toString(), message.getRole(),
             message.getText(), proposal, message.getCreatedAt().toString());
