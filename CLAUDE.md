@@ -67,8 +67,7 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   (notes re-indexed on every write; days skipped when the content hash is unchanged). `PlanHistoryIndexer`
   summarizes past days (`DaySummarizer`) at startup and nightly; it must read via `PlanStore.findDay` only and
   never call `PlanService.getOrGenerate`. `MemorySearch` backs the planning agent's
-  `search_memory` tool (known gap: the HNSW index post-filters, so a `source`-filtered search can return fewer
-  than k on a large table).
+  `search_memory` tool; filtered searches use pgvector iterative scan, and results are one hit per source.
 - Errors: `config/GlobalExceptionHandler` maps app exceptions to RFC 7807 problem+json (400 invalid, 404 setup
   required / note not found, 409 proposal not available, 422 unknown block, 502, 503) and extends `ResponseEntityExceptionHandler` so
   framework errors keep their status.

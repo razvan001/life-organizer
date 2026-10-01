@@ -4,7 +4,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
+
+import java.time.Duration;
 
 /**
  * Builds the LLM clients ({@link AgentLlmClient} and {@link SetupExtractionClient}), but only when an API key
@@ -31,7 +34,11 @@ public class LlmClientConfig {
     }
 
     private static RestClient groqRestClient(String apiKey) {
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(Duration.ofSeconds(10));
+        requestFactory.setReadTimeout(Duration.ofSeconds(60));
         return RestClient.builder()
+            .requestFactory(requestFactory)
             .baseUrl(GROQ_ENDPOINT)
             .defaultHeader("Authorization", "Bearer " + apiKey)
             .build();

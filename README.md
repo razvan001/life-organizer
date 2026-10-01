@@ -101,7 +101,7 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | POST | `/api/assistant/chat/messages/{id}/apply` | apply that message's pending proposal to today's plan |
 | POST | `/api/assistant/chat/messages/{id}/reject` | reject that message's pending proposal |
 | POST | `/api/setup/extract` | turn a free-form brain dump into a goals/constraints preview (not saved; needs `GROQ_API_KEY`) |
-| POST | `/api/plan/today/events/batch` | apply several plan events at once (used by the assistant's Apply) |
+| POST | `/api/plan/today/events/batch` | apply several plan events at once |
 | GET | `/api/notes` | list notes, newest first |
 | POST | `/api/notes` | create a note `{title, body}` (201) |
 | PUT | `/api/notes/{id}` | update a note |

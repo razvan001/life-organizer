@@ -105,6 +105,14 @@ class ChangeToolsTest {
     }
 
     @Test
+    void aNonStringFieldIsAToolErrorNotACrash() {
+        assertThatThrownBy(() -> simulate.execute(
+            args("{\"events\":[{\"type\":\"CANCEL_BLOCK\",\"blockId\":{\"id\":\"gym-1\"}}]}"), new TurnContext(TODAY)))
+            .isInstanceOf(ToolException.class)
+            .hasMessage("event 1 has a field of the wrong type: every field must be a plain string");
+    }
+
+    @Test
     void invalidEventsNeverReachTheEngine() {
         assertThatThrownBy(() -> simulate.execute(args("{\"events\":[{\"type\":\"CANCEL_BLOCK\",\"blockId\":\"nope\"}]}"),
             new TurnContext(TODAY))).isInstanceOf(InvalidRequestException.class);

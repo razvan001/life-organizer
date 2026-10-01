@@ -25,7 +25,16 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
   const [pastThread, setPastThread] = useState<ChatMessageDto[] | null>(null)
   const inputId = useId()
   const pickerId = useId()
+  const inputRef = useRef<HTMLInputElement>(null)
   const busy = pageBusy || sending !== null || working
+
+  // The box is disabled while a message is out; hand the focus back once the send is over.
+  const wasSending = useRef(false)
+  useEffect(() => {
+    const isSending = sending !== null
+    if (wasSending.current && !isSending) inputRef.current?.focus()
+    wasSending.current = isSending
+  }, [sending])
 
   // A tab can stay open past midnight: when the page's day moves on, the saved thread and the day list
   // are reloaded and any earlier day on screen gives way to the new Today.
@@ -172,6 +181,7 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
             <label htmlFor={inputId}>Message the assistant</label>
             <input
               id={inputId}
+              ref={inputRef}
               type="text"
               maxLength={2000}
               value={input}

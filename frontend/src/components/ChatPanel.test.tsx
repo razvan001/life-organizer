@@ -77,6 +77,7 @@ describe('ChatPanel', () => {
     expect(await screen.findByText("I'd cancel the gym.")).toBeInTheDocument()
     expect(screen.queryByText('Thinking…')).not.toBeInTheDocument()
     expect(screen.getByLabelText('Message the assistant')).toHaveValue('')
+    await waitFor(() => expect(screen.getByLabelText('Message the assistant')).toHaveFocus())
   })
 
   it('keeps the text and shows the error when the assistant is unavailable', async () => {

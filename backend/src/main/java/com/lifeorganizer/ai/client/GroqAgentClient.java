@@ -6,7 +6,9 @@ import com.lifeorganizer.ai.agent.ToolCall;
 import com.lifeorganizer.ai.agent.ToolSpec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
+import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
 import java.util.LinkedHashMap;
@@ -31,7 +33,16 @@ public class GroqAgentClient implements AgentLlmClient {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("tools", tools.stream().map(this::toolJson).toList());
         extra.put("tool_choice", "auto");
-        GroqChatClient.ChatMessage message = chat.send(messages.stream().map(GroqAgentClient::messageJson).toList(), extra);
+        GroqChatClient.ChatMessage message;
+        try {
+            message = chat.send(messages.stream().map(GroqAgentClient::messageJson).toList(), extra);
+        } catch (HttpClientErrorException.BadRequest e) {
+            String body = e.getResponseBodyAsString();
+            if (body.contains("tool_use_failed")) {
+                throw new ToolCallRejectedException(rejectionMessage(body));
+            }
+            throw e;
+        }
 
         List<ToolCall> calls = message.toolCalls() == null ? List.of() : message.toolCalls().stream()
             .map(call -> new ToolCall(call.id(),
@@ -46,6 +57,18 @@ public class GroqAgentClient implements AgentLlmClient {
         log.debug("Groq agent reply: text.length={} toolCalls={}", noText ? 0 : message.content().length(),
             calls.stream().map(ToolCall::name).toList());
         return new AgentReply(noText ? null : message.content(), calls);
+    }
+
+    private String rejectionMessage(String body) {
+        try {
+            JsonNode message = jsonMapper.readTree(body).path("error").path("message");
+            if (message.isString() && !message.asString().isBlank()) {
+                return message.asString();
+            }
+        } catch (RuntimeException e) {
+            log.debug("Could not parse Groq's tool_use_failed body", e);
+        }
+        return "the tool call was not valid";
     }
 
     @SuppressWarnings("unchecked")

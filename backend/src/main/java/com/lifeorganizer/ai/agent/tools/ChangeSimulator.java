@@ -10,6 +10,7 @@ import com.lifeorganizer.plan.PlanService;
 import com.lifeorganizer.plan.dto.ApplyEventRequest;
 import com.lifeorganizer.plan.dto.TodayPlanResponse;
 import org.springframework.stereotype.Component;
+import tools.jackson.core.JacksonException;
 import tools.jackson.databind.JsonNode;
 
 import java.time.LocalDate;
@@ -44,11 +45,17 @@ public class ChangeSimulator {
             throw new ToolException("events must be an array of event objects");
         }
         List<ApplyEventRequest> requests = new ArrayList<>();
+        int index = 0;
         for (JsonNode event : events) {
             if (!event.isObject()) {
                 throw new ToolException("events must be an array of event objects");
             }
-            requests.add(ToolJson.MAPPER.treeToValue(event, ApplyEventRequest.class));
+            try {
+                requests.add(ToolJson.MAPPER.treeToValue(event, ApplyEventRequest.class));
+            } catch (JacksonException e) {
+                throw new ToolException("event " + (index + 1) + " has a field of the wrong type: every field must be a plain string");
+            }
+            index++;
         }
         return requests;
     }

@@ -13,7 +13,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-/** Semantic search over notes and past days. The agent (Phase 3b) will call this as its search_memory tool. */
+/** Semantic search over notes and past days. This is the backend of the planning agent's search_memory tool. */
 @Service
 public class MemorySearch {
 

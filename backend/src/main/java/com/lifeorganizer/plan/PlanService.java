@@ -109,9 +109,10 @@ public class PlanService {
 
     /**
      * Applies every event and persists all of them in one transaction: if any event fails, none of the
-     * batch's changes are written. Plain REQUIRED (the default, same as every other method here) is
-     * correct: a caller (a controller) has no ambient transaction of its own to join, so this always
-     * opens one real transaction, and a failure rolls it back immediately and for real.
+     * batch's changes are written. Plain REQUIRED (the default, same as every other method here): a
+     * controller caller has no ambient transaction, so this opens one real transaction and a failure rolls
+     * it back immediately. It may also join a caller's transaction (ChatService.apply), in which case an
+     * engine failure marks that transaction rollback-only and rolls back the caller's work too.
      */
     @Transactional
     public AppliedEvent applyEvents(List<PlanEvent> events, LocalDate today) {

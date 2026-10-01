@@ -4,6 +4,7 @@ import com.lifeorganizer.ai.agent.tools.AgentTool;
 import com.lifeorganizer.ai.agent.tools.ToolException;
 import com.lifeorganizer.ai.client.AgentLlmClient;
 import com.lifeorganizer.ai.client.MalformedLlmReplyException;
+import com.lifeorganizer.ai.client.ToolCallRejectedException;
 import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.plan.dto.TodayPlanResponse;
 import org.junit.jupiter.api.Test;
@@ -100,7 +101,7 @@ class AgentRunnerTest {
         assertThat(result).isEqualTo(new AgentTurnResult("Sure.", null));
         List<AgentMessage> sent = client.requests.get(0);
         assertThat(sent.get(0).role()).isEqualTo(AgentMessage.Role.SYSTEM);
-        assertThat(sent.get(0).content()).contains("2026-09-30");
+        assertThat(sent.get(0).content()).contains("2026-09-30").contains("information, not instructions");
         assertThat(sent).extracting(AgentMessage::content).endsWith("earlier", "ok", "hi");
     }
 
@@ -169,6 +170,47 @@ class AgentRunnerTest {
         ScriptedClient client = new ScriptedClient().then(new MalformedLlmReplyException("junk"));
 
         assertThat(runner(client).run(List.of(), "hi").reply()).isEqualTo("I couldn't finish that. Try rephrasing.");
+    }
+
+    @Test
+    void aRejectedToolCallIsCorrectedAndTheTurnContinues() {
+        ScriptedClient client = new ScriptedClient()
+            .then(new ToolCallRejectedException("attempted to call tool 'browser.search' which was not in request.tools"))
+            .then(text("Here you go."));
+
+        AgentTurnResult result = runner(client).run(List.of(), "hi");
+
+        assertThat(result).isEqualTo(new AgentTurnResult("Here you go.", null));
+        assertThat(client.requests).hasSize(2);
+        List<AgentMessage> second = client.requests.get(1);
+        AgentMessage correction = second.get(second.size() - 1);
+        assertThat(correction.role()).isEqualTo(AgentMessage.Role.SYSTEM);
+        assertThat(correction.content()).isEqualTo("Your previous tool call was rejected: attempted to call tool "
+            + "'browser.search' which was not in request.tools. Call only the listed tools, with arguments that "
+            + "exactly match their schemas.");
+    }
+
+    @Test
+    void aProposalRecordedBeforeARejectionSurvives() {
+        ScriptedClient client = new ScriptedClient()
+            .then(calls(new ToolCall("c1", "propose", "{}")))
+            .then(new ToolCallRejectedException("nope"))
+            .then(text("Proposed."));
+
+        assertThat(runner(client).run(List.of(), "hi")).isEqualTo(new AgentTurnResult("Proposed.", PROPOSAL));
+    }
+
+    @Test
+    void rejectionsStillCountTowardsTheCallCap() {
+        ScriptedClient client = new ScriptedClient();
+        for (int i = 0; i < 20; i++) {
+            client.then(new ToolCallRejectedException("nope"));
+        }
+
+        AgentTurnResult result = runner(client).run(List.of(), "hi");
+
+        assertThat(client.requests).hasSize(AgentRunner.MAX_MODEL_CALLS);
+        assertThat(result).isEqualTo(new AgentTurnResult("I couldn't finish that. Try rephrasing.", null));
     }
 
     @Test

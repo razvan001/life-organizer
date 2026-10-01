@@ -50,6 +50,7 @@ class GroqAgentClientTest {
             .andExpect(jsonPath("$.messages[0].role").value("system"))
             .andExpect(jsonPath("$.messages[1].role").value("user"))
             .andExpect(jsonPath("$.messages[2].role").value("assistant"))
+            .andExpect(jsonPath("$.messages[2].content").value(""))
             .andExpect(jsonPath("$.messages[2].tool_calls[0].id").value("c1"))
             .andExpect(jsonPath("$.messages[2].tool_calls[0].type").value("function"))
             .andExpect(jsonPath("$.messages[2].tool_calls[0].function.name").value("get_today_plan"))
@@ -110,5 +111,62 @@ class GroqAgentClientTest {
 
         assertThatThrownBy(() -> sut.chat(List.of(AgentMessage.user("hi")), List.of(TOOL)))
             .isInstanceOf(RestClientException.class);
+    }
+
+    @Test
+    void parsesARealisticGptOssToolCallReply() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withSuccess("""
+            {"id":"chatcmpl-1","object":"chat.completion","created":1790000000,"model":"openai/gpt-oss-120b",
+             "choices":[{"index":0,"finish_reason":"tool_calls","logprobs":null,
+               "message":{"role":"assistant","content":null,"reasoning":"I should look at today's plan first.",
+                 "tool_calls":[{"id":"fc_1","type":"function",
+                   "function":{"name":"get_today_plan","arguments":"{}"}}]}}],
+             "usage":{"queue_time":0.01,"prompt_tokens":100,"completion_tokens":20,"total_tokens":120},
+             "system_fingerprint":"fp_x","x_groq":{"id":"req_1"},"service_tier":"on_demand"}
+            """, MediaType.APPLICATION_JSON));
+
+        AgentReply reply = sut.chat(List.of(AgentMessage.user("hi")), List.of(TOOL));
+
+        assertThat(reply.content()).isNull();
+        assertThat(reply.toolCalls()).containsExactly(new ToolCall("fc_1", "get_today_plan", "{}"));
+    }
+
+    @Test
+    void aToolUseFailedBadRequestBecomesAToolCallRejection() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body("""
+                {"error":{"message":"tool call validation failed: attempted to call tool 'browser.search' which was not in request.tools",
+                 "type":"invalid_request_error","code":"tool_use_failed","failed_generation":"{\\"name\\":\\"browser.search\\"}"}}
+                """));
+
+        assertThatThrownBy(() -> sut.chat(List.of(AgentMessage.user("hi")), List.of(TOOL)))
+            .isInstanceOf(ToolCallRejectedException.class)
+            .hasMessage("tool call validation failed: attempted to call tool 'browser.search' which was not in request.tools");
+    }
+
+    @Test
+    void anUnparseableToolUseFailedBodyStillBecomesARejection() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+            .body("tool_use_failed (not json)"));
+
+        assertThatThrownBy(() -> sut.chat(List.of(AgentMessage.user("hi")), List.of(TOOL)))
+            .isInstanceOf(ToolCallRejectedException.class)
+            .hasMessage("the tool call was not valid");
+    }
+
+    @Test
+    void anyOtherBadRequestStaysARestClientException() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.BAD_REQUEST)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body("{\"error\":{\"message\":\"bad model\",\"code\":\"model_not_found\"}}"));
+
+        assertThatThrownBy(() -> sut.chat(List.of(AgentMessage.user("hi")), List.of(TOOL)))
+            .isInstanceOf(RestClientException.class)
+            .isNotInstanceOf(ToolCallRejectedException.class);
     }
 }
