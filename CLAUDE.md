@@ -53,21 +53,24 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   SDK) with a **hand-written strict JSON schema** per use (strict mode: every property listed in `required`,
   nullable via `["type","null"]`). Error split: `RestClientException` → `AssistantUnavailableException` (502);
   an unusable model reply (`MalformedLlmReplyException`) is downgraded to a normal 200 "not understood" /
-  warning, never an HTTP error. Model output is never trusted: `CommandInterpreter` validates block ids
+  warning, never an HTTP error. Model output is never trusted: `ProposedEventValidator` validates block ids
   (only today's, never `FREE` blocks) and runs each event through `ApplyEventRequest.toEvent`;
-  `SetupExtractionService` defaults or drops invalid values with warnings. Proposals are stateless:
-  propose = `simulateEvents`, Apply = `POST /api/plan/today/events/batch`.
+  `SetupExtractionService` defaults or drops invalid values with warnings. The planning agent is
+  `AgentRunner` (tool-calling loop, max 8 model calls, tools in `ai/agent/tools`, validation in
+  `ProposedEventValidator`); `ChatService` / `ChatStore` keep a per-day `chat_message` thread with proposal
+  statuses, and `send` runs outside any transaction (LLM calls take seconds). Proposals are applied via
+  `POST /api/assistant/chat/messages/{id}/apply` (propose = `simulateEvents`).
 - `memory/` — RAG. `TextEmbedder` (384 dims) is implemented by `MiniLmTextEmbedder` (quantized all-MiniLM-L6-v2
   via langchain4j ONNX, in-process, always on). `MemoryChunkStore` is plain `JdbcTemplate` SQL on the pgvector
   `memory_chunk` table (vectors passed as `'[..]'::vector` literals, cosine `<=>`, HNSW index); its writes join
   the surrounding JPA transaction, so a failed index rolls back a note save. `Chunker` → `MemoryIndexer`
   (notes re-indexed on every write; days skipped when the content hash is unchanged). `PlanHistoryIndexer`
   summarizes past days (`DaySummarizer`) at startup and nightly; it must read via `PlanStore.findDay` only and
-  never call `PlanService.getOrGenerate`. `MemorySearch` is meant to become the planning agent's
+  never call `PlanService.getOrGenerate`. `MemorySearch` backs the planning agent's
   `search_memory` tool (known gap: the HNSW index post-filters, so a `source`-filtered search can return fewer
   than k on a large table).
 - Errors: `config/GlobalExceptionHandler` maps app exceptions to RFC 7807 problem+json (400 invalid, 404 setup
-  required / note not found, 422 unknown block, 502, 503) and extends `ResponseEntityExceptionHandler` so
+  required / note not found, 409 proposal not available, 422 unknown block, 502, 503) and extends `ResponseEntityExceptionHandler` so
   framework errors keep their status.
 - JSON is Jackson 3 (`tools.jackson.*`); langchain4j brings Jackson 2 (`com.fasterxml.*`) transitively — use
   the Jackson 3 packages in app code.
@@ -79,7 +82,7 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   `errorMessage()` turns failures into UI text. `api/types.ts` mirrors backend DTOs by hand.
 - `api/useApi.ts` loads data on mount (`{data, error, loading, refetch, setData}`) and drops stale responses;
   pass it a stable function such as `api.getToday`.
-- Pages: `TodayPage` (timeline, block actions, `AssistantBox` when `config.aiEnabled`), `SetupPage` (regex
+- Pages: `TodayPage` (timeline, block actions, `ChatPanel` when `config.aiEnabled`), `SetupPage` (regex
   parse, saved setup, and brain-dump extraction all feed one `SetupPreview`), `NotesPage` (notes CRUD + memory
   search). Confirmations use the shared `ChangeToast`.
 - Tests: Vitest + Testing Library; `test/mockApi.ts` stubs `fetch` with routes keyed `"METHOD /path?query"`

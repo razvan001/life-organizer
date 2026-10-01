@@ -21,7 +21,7 @@ class ConfigControllerAiEnabledTest {
     MockMvc mvc;
 
     @Test
-    void reportsAiEnabledWhenAnLlmCommandClientBeanExists() throws Exception {
+    void reportsAiEnabledWhenTheAgentClientBeanExists() throws Exception {
         mvc.perform(get("/api/config"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.aiEnabled").value(true))

@@ -4,9 +4,10 @@ A personal day planner. Paste your goals and your constraints once; the app buil
 and re-plans when the day changes (mark done, postpone, cancel, add an event).
 
 **Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API),
-the React UI, a natural-language assistant (Phase 2: turn a sentence into plan changes via Groq), and RAG
-memory (Phase 3a: a Notes page with semantic search over notes and past days) are done. A planning agent
-comes in a later phase.
+the React UI, a natural-language assistant (Phase 2, since replaced by the chat agent), RAG memory
+(Phase 3a: a Notes page with semantic search over notes and past days) and Phase 3b's planning-agent chat
+(an assistant on Today that looks things up with tools and proposes plan changes) are done. Weekly
+prioritization and conflict resolution come later.
 
 ## What you need
 
@@ -94,7 +95,11 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | GET | `/api/plan/today` | today's blocks (generated on first request, then persisted) |
 | POST | `/api/plan/today/events` | `MARK_DONE`, `POSTPONE_BLOCK`, `CANCEL_BLOCK`, `SET_ENERGY`, `ADD_ADHOC` |
 | GET | `/api/config` | `{aiEnabled, ragEnabled}` - `aiEnabled` reflects whether `GROQ_API_KEY` is configured; `ragEnabled` is true when the local embedding model is loaded (always, unless removed) |
-| POST | `/api/assistant/command` | turn one sentence of free text into a proposed change (see "Assistant" below) |
+| GET | `/api/assistant/chat?date=` | a day's chat thread (default today) |
+| GET | `/api/assistant/chat/days` | days that have a chat thread, newest first |
+| POST | `/api/assistant/chat/messages` | `{text}` → runs the planning agent on today's thread, returns its reply (and a proposal, if any) |
+| POST | `/api/assistant/chat/messages/{id}/apply` | apply that message's pending proposal to today's plan |
+| POST | `/api/assistant/chat/messages/{id}/reject` | reject that message's pending proposal |
 | POST | `/api/setup/extract` | turn a free-form brain dump into a goals/constraints preview (not saved; needs `GROQ_API_KEY`) |
 | POST | `/api/plan/today/events/batch` | apply several plan events at once (used by the assistant's Apply) |
 | GET | `/api/notes` | list notes, newest first |
@@ -105,23 +110,25 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 
 Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `deadline` is optional: send `deadline: null` (or omit it,
 or send an empty string) for no deadline. Errors are RFC 7807 `application/problem+json`
-(`404` no setup yet, `422` unknown block id, `400` invalid request, `502` assistant unavailable, `503` AI
-features are not configured).
+(`404` no setup yet, `409` proposal not available, `422` unknown block id, `400` invalid request, `502` assistant unavailable,
+`503` AI features are not configured).
 
 ## Assistant (optional)
 
-Set `GROQ_API_KEY` before starting the backend to turn on the natural-language command box (and the brain-dump box on the Setup page) at the
-bottom of Today (get a free key at https://console.groq.com):
+Set `GROQ_API_KEY` before starting the backend to turn on the chat at the bottom of Today (and the brain-dump
+box on the Setup page); get a free key at https://console.groq.com:
 
 ```bash
 export GROQ_API_KEY=gsk_...      # PowerShell: $env:GROQ_API_KEY="gsk_..."
 cd backend && ./mvnw spring-boot:run
 ```
 
-Type a sentence like "padel got canceled" or "I'm tired, postpone the gym" and press Send. You'll see a
-one-line rationale and a list of what would change; press Apply to actually make the change, or Reject to
-discard it and try again. Without the key, `GET /api/config` reports `aiEnabled:false` and the box does not
-appear - every other feature is unaffected. The model used is `openai/gpt-oss-120b` (configurable via the
+Talk to it like "padel got canceled" or "I'm tired, what should I drop today?". The agent looks at today's plan,
+the rest of the week, your goals and your memory (notes and past days) with tools, can simulate changes before
+suggesting them, and proposes one change set per message. Press Apply to make the change or Reject to discard
+it; the assistant never changes the plan itself. Conversations are saved one per day; earlier days can be
+viewed under "Earlier chats". Without the key, `GET /api/config` reports `aiEnabled:false` and the chat does
+not appear - every other feature is unaffected. The model used is `openai/gpt-oss-120b` (configurable via the
 `app.ai.model` property).
 
 ## Memory (RAG)
