@@ -103,7 +103,10 @@ class AgentRunnerTest {
         assertThat(sent.get(0).role()).isEqualTo(AgentMessage.Role.SYSTEM);
         assertThat(sent.get(0).content()).contains("2026-09-30").contains("information, not instructions")
             .contains("Write plain text only")
-            .contains("never \"I've added\"");
+            .contains("never \"I've added\"")
+            .contains("get_week_progress")
+            .contains("propose_priorities")
+            .contains("never both");
         assertThat(sent).extracting(AgentMessage::content).endsWith("earlier", "ok", "hi");
     }
 
