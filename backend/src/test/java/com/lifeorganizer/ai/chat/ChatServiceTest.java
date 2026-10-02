@@ -3,9 +3,13 @@ package com.lifeorganizer.ai.chat;
 import com.lifeorganizer.ai.agent.AgentMessage;
 import com.lifeorganizer.ai.agent.AgentRunner;
 import com.lifeorganizer.ai.agent.AgentTurnResult;
+import com.lifeorganizer.ai.agent.PriorityChange;
 import com.lifeorganizer.ai.agent.Proposal;
 import com.lifeorganizer.ai.chat.dto.ChatMessageDto;
 import com.lifeorganizer.domain.DayPlan;
+import com.lifeorganizer.domain.Goal;
+import com.lifeorganizer.persistence.SetupStore;
+import com.lifeorganizer.support.ExampleSetup;
 import com.lifeorganizer.engine.CancelBlock;
 import com.lifeorganizer.error.ChatMessageNotFoundException;
 import com.lifeorganizer.error.ProposalNotAvailableException;
@@ -35,19 +39,22 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 @DataJpaTest
 @AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
 @Testcontainers
-@Import({ChatService.class, ChatStore.class, ChatServiceTest.Beans.class})
+@Import({ChatService.class, ChatStore.class, SetupStore.class, ChatServiceTest.Beans.class})
 class ChatServiceTest {
 
     @Container
@@ -69,6 +76,9 @@ class ChatServiceTest {
 
     @Autowired
     ChatMessageRepository repository;
+
+    @Autowired
+    SetupStore setupStore;
 
     @MockitoBean
     AgentRunner runner;
@@ -139,6 +149,53 @@ class ChatServiceTest {
         assertThat(applied.changes()).containsExactly("Cancelled Gym");
         assertThat(chat.thread(TODAY).get(1).proposal().status()).isEqualTo("APPLIED");
         assertThatThrownBy(() -> chat.apply(id)).isInstanceOf(ProposalNotAvailableException.class);
+    }
+
+    private static final Proposal PRIORITIES = Proposal.priorities("Exam week",
+        List.of(new PriorityChange("career-system-design", "System design", 3, 5, "exam Friday")),
+        List.of("Would re-plan Thu 2026-10-01"));
+
+    @Test
+    void applyingPrioritiesSavesThemAndReplansUntouchedDays() {
+        setupStore.replace(ExampleSetup.tree(), ExampleSetup.constraints());
+        agentAnswers("I'd raise System design.", PRIORITIES);
+        long id = chat.send("review my week").id();
+        when(planService.replanUntouchedDays(TODAY)).thenReturn(List.of(TODAY.plusDays(1), TODAY.plusDays(2)));
+        when(planService.getOrGenerate(TODAY)).thenReturn(new DayPlan(TODAY, List.of(), List.of()));
+
+        ApplyEventsResponse applied = chat.apply(id);
+
+        assertThat(applied.changes()).containsExactly("System design: priority 3 -> 5",
+            "Re-planned Thu 2026-10-01, Fri 2026-10-02");
+        assertThat(setupStore.loadTree().goals()).filteredOn(g -> g.id().equals("career-system-design"))
+            .extracting(Goal::priority).containsExactly(5);
+        assertThat(chat.thread(TODAY).get(1).proposal().status()).isEqualTo("APPLIED");
+        assertThat(chat.thread(TODAY).get(1).proposal().kind()).isEqualTo("PRIORITIES");
+        verify(planService, never()).applyEvents(anyList(), any());
+    }
+
+    @Test
+    void aPriorityProposalWhoseGoalsChangedIsRefused() {
+        setupStore.replace(ExampleSetup.tree(), ExampleSetup.constraints());
+        setupStore.updatePriorities(Map.of("career-system-design", 4));
+        agentAnswers("I'd raise System design.", PRIORITIES);
+        long id = chat.send("review my week").id();
+
+        assertThatThrownBy(() -> chat.apply(id)).isInstanceOf(ProposalNotAvailableException.class)
+            .hasMessage("Your goals changed since this proposal");
+
+        verify(planService, never()).replanUntouchedDays(any());
+    }
+
+    @Test
+    void aSliceOneProposalStillApplies() {
+        ChatMessageEntity old = repository.save(new ChatMessageEntity(TODAY, 0, "ASSISTANT", "old",
+            "{\"rationale\":\"x\",\"events\":[{\"type\":\"CANCEL_BLOCK\",\"blockId\":\"gym-1\"}],\"changes\":[],\"preview\":null}",
+            "PENDING", Instant.EPOCH));
+        when(planService.applyEvents(List.of(new CancelBlock("gym-1")), TODAY))
+            .thenReturn(new AppliedEvent(new DayPlan(TODAY, List.of(), List.of()), List.of("Cancelled Gym")));
+
+        assertThat(chat.apply(old.getId()).changes()).containsExactly("Cancelled Gym");
     }
 
     @Test

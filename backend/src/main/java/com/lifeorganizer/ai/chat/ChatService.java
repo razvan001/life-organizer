@@ -3,13 +3,18 @@ package com.lifeorganizer.ai.chat;
 import com.lifeorganizer.ai.agent.AgentMessage;
 import com.lifeorganizer.ai.agent.AgentRunner;
 import com.lifeorganizer.ai.agent.AgentTurnResult;
+import com.lifeorganizer.ai.agent.PriorityChange;
 import com.lifeorganizer.ai.agent.Proposal;
 import com.lifeorganizer.ai.agent.tools.ToolJson;
 import com.lifeorganizer.ai.chat.dto.ChatMessageDto;
 import com.lifeorganizer.ai.chat.dto.ProposalDto;
+import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.engine.PlanEvent;
 import com.lifeorganizer.error.ChatMessageNotFoundException;
 import com.lifeorganizer.error.ProposalNotAvailableException;
+import com.lifeorganizer.memory.history.DaySummarizer;
+import com.lifeorganizer.persistence.SetupStore;
+import com.lifeorganizer.plan.AppliedEvent;
 import com.lifeorganizer.plan.PlanDtoMapper;
 import com.lifeorganizer.plan.PlanService;
 import com.lifeorganizer.plan.dto.ApplyEventsResponse;
@@ -21,12 +26,17 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * The per-day chat thread. send() runs the agent OUTSIDE any transaction (a turn takes seconds of LLM calls) and
- * only then stores the turn; apply() replays a pending proposal of today's thread through the engine.
+ * only then stores the turn; apply() replays a pending plan proposal through the engine, or saves a priorities
+ * proposal and re-plans untouched days.
  */
 @Service
 public class ChatService {
@@ -37,14 +47,16 @@ public class ChatService {
     private final ChatMessageRepository repository;
     private final AgentRunner runner;
     private final PlanService planService;
+    private final SetupStore setupStore;
     private final Clock clock;
 
     public ChatService(ChatStore store, ChatMessageRepository repository, AgentRunner runner, PlanService planService,
-                       Clock clock) {
+                       SetupStore setupStore, Clock clock) {
         this.store = store;
         this.repository = repository;
         this.runner = runner;
         this.planService = planService;
+        this.setupStore = setupStore;
         this.clock = clock;
     }
 
@@ -64,17 +76,50 @@ public class ChatService {
         return toDto(store.appendTurn(today, text, result, Instant.now(clock)));
     }
 
-    @Transactional
+    /**
+     * Applies a pending proposal of today's thread. noRollbackFor keeps the EXPIRED status of a stale priorities
+     * proposal when the 409 is thrown; the stale check runs before anything else is written.
+     */
+    @Transactional(noRollbackFor = ProposalNotAvailableException.class)
     public ApplyEventsResponse apply(long messageId) {
         ChatMessageEntity message = pendingProposalOfToday(messageId);
         LocalDate today = LocalDate.now(clock);
         Proposal proposal = decode(message.getProposal());
+        ApplyEventsResponse applied = proposal.kind() == Proposal.Kind.PRIORITIES
+            ? applyPriorities(message, proposal, today)
+            : applyPlan(proposal, today);
+        message.setProposalStatus(ProposalStatus.APPLIED.name());
+        log.info("Applied chat proposal {} ({})", messageId, proposal.kind());
+        return applied;
+    }
+
+    private ApplyEventsResponse applyPlan(Proposal proposal, LocalDate today) {
         List<PlanEvent> events = proposal.events().stream().map(event -> event.toEvent(today)).toList();
         // Joins this transaction: if the engine refuses (e.g. a block no longer exists), the status stays PENDING.
-        ApplyEventsResponse applied = PlanDtoMapper.toEventsResponse(planService.applyEvents(events, today));
-        message.setProposalStatus(ProposalStatus.APPLIED.name());
-        log.info("Applied chat proposal {} ({} events)", messageId, events.size());
-        return applied;
+        return PlanDtoMapper.toEventsResponse(planService.applyEvents(events, today));
+    }
+
+    private ApplyEventsResponse applyPriorities(ChatMessageEntity message, Proposal proposal, LocalDate today) {
+        Map<String, Integer> current = setupStore.loadTree().goals().stream()
+            .collect(Collectors.toMap(Goal::id, Goal::priority));
+        boolean stale = proposal.priorityChanges().stream()
+            .anyMatch(change -> !Integer.valueOf(change.from()).equals(current.get(change.goalId())));
+        if (stale) {
+            message.setProposalStatus(ProposalStatus.EXPIRED.name());
+            throw new ProposalNotAvailableException("Your goals changed since this proposal");
+        }
+        Map<String, Integer> next = new LinkedHashMap<>();
+        List<String> changes = new ArrayList<>();
+        for (PriorityChange change : proposal.priorityChanges()) {
+            next.put(change.goalId(), change.to());
+            changes.add(change.goalName() + ": priority " + change.from() + " -> " + change.to());
+        }
+        setupStore.updatePriorities(next);
+        List<LocalDate> replanned = planService.replanUntouchedDays(today);
+        if (!replanned.isEmpty()) {
+            changes.add("Re-planned " + replanned.stream().map(DaySummarizer::title).collect(Collectors.joining(", ")));
+        }
+        return PlanDtoMapper.toEventsResponse(new AppliedEvent(planService.getOrGenerate(today), changes));
     }
 
     @Transactional

@@ -5,6 +5,7 @@ import com.lifeorganizer.ai.agent.AgentMessage;
 import com.lifeorganizer.ai.agent.AgentReply;
 import com.lifeorganizer.ai.agent.ToolCall;
 import com.lifeorganizer.ai.client.AgentLlmClient;
+import com.lifeorganizer.plan.PlanService;
 import com.lifeorganizer.support.ExampleSetup;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -70,12 +71,24 @@ class ChatApiEndToEndTest {
         AgentLlmClient scriptedAgentClient() {
             return (messages, tools) -> {
                 List<AgentMessage> toolResults = messages.stream().filter(m -> m.role() == AgentMessage.Role.TOOL).toList();
+                String userText = messages.stream().filter(m -> m.role() == AgentMessage.Role.USER)
+                    .reduce((first, second) -> second).orElseThrow().content();
+                if (userText.contains("review")) {
+                    if (toolResults.isEmpty()) {
+                        return new AgentReply(null, List.of(new ToolCall("r1", "get_week_progress", "{}")));
+                    }
+                    if (toolResults.size() == 1) {
+                        return new AgentReply(null, List.of(new ToolCall("r2", "propose_priorities",
+                            "{\"rationale\":\"More system design\",\"changes\":[{\"goalId\":\"career-system-design\","
+                                + "\"priority\":5,\"reason\":\"interview soon\"}]}")));
+                    }
+                    return new AgentReply("I suggest raising System design.", List.of());
+                }
                 if (toolResults.isEmpty()) {
                     return new AgentReply(null, List.of(new ToolCall("c1", "get_today_plan", "{}")));
                 }
                 if (toolResults.size() == 1) {
                     List<String> goalIds = JsonPath.read(toolResults.get(0).content(), "$.blocks[?(@.kind == 'GOAL')].id");
-                    String userText = messages.get(messages.size() - 3).content();
                     String type = userText.contains("postpone") ? "POSTPONE_BLOCK" : "CANCEL_BLOCK";
                     return new AgentReply(null, List.of(new ToolCall("c2", "propose_changes",
                         "{\"rationale\":\"Taking it off today\",\"events\":[{\"type\":\"" + type + "\",\"blockId\":\""
@@ -91,6 +104,9 @@ class ChatApiEndToEndTest {
 
     @Autowired
     JdbcTemplate jdbc;
+
+    @Autowired
+    PlanService planService;
 
     @BeforeEach
     void cleanDatabase() {
@@ -150,5 +166,41 @@ class ChatApiEndToEndTest {
 
         org.assertj.core.api.Assertions.assertThat((String) JsonPath.read(reply, "$.proposal.events[0].type"))
             .isEqualTo("POSTPONE_BLOCK");
+    }
+
+    @Test
+    void aPriorityProposalUpdatesTheGoalAndReplansUntouchedDays() throws Exception {
+        saveExampleSetup();
+        mvc.perform(get("/api/plan/today")).andExpect(status().isOk());
+        planService.getOrGenerate(java.time.LocalDate.of(2026, 9, 16)); // Wednesday, stored and untouched
+
+        String reply = send("please review my week");
+        Integer id = JsonPath.read(reply, "$.id");
+        org.assertj.core.api.Assertions.assertThat((String) JsonPath.read(reply, "$.proposal.kind")).isEqualTo("PRIORITIES");
+
+        mvc.perform(post("/api/assistant/chat/messages/" + id + "/apply"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.changes[0]").value("System design: priority 3 -> 5"))
+            .andExpect(jsonPath("$.changes[1]").value("Re-planned Wed 2026-09-16"))
+            .andExpect(jsonPath("$.date").value("2026-09-14"));
+
+        org.assertj.core.api.Assertions.assertThat(
+            jdbc.queryForObject("select priority from goal where id = 'career-system-design'", Integer.class)).isEqualTo(5);
+        org.assertj.core.api.Assertions.assertThat(
+            jdbc.queryForObject("select count(*) from block where block_date ='2026-09-16'", Integer.class)).isPositive();
+        mvc.perform(get("/api/assistant/chat")).andExpect(jsonPath("$[1].proposal.status").value("APPLIED"));
+    }
+
+    @Test
+    void aStalePriorityProposalExpires() throws Exception {
+        saveExampleSetup();
+        Integer id = JsonPath.read(send("please review my week"), "$.id");
+        jdbc.update("update goal set priority = 4 where id = 'career-system-design'");
+
+        mvc.perform(post("/api/assistant/chat/messages/" + id + "/apply"))
+            .andExpect(status().isConflict())
+            .andExpect(jsonPath("$.detail").value("Your goals changed since this proposal"));
+
+        mvc.perform(get("/api/assistant/chat")).andExpect(jsonPath("$[1].proposal.status").value("EXPIRED"));
     }
 }
