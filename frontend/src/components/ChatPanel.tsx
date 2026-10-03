@@ -154,7 +154,7 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
         {messages.map((message) => (
           <li key={message.id} className={message.role === 'USER' ? 'chat-user' : 'chat-assistant'}>
             <p className="chat-bubble">{message.text}</p>
-            {message.proposal && (
+            {message.proposal && message.proposal.preview && (
               <ProposalCard
                 rationale={message.proposal.rationale}
                 events={message.proposal.events}

@@ -28,6 +28,31 @@ const STATUS_LABEL: Record<string, string> = {
   POSTPONED: 'Postponed',
 }
 
+interface FooterProps {
+  /** When set and not PENDING, the buttons give way to the outcome. */
+  status?: ProposalStatus
+  busy: boolean
+  onApply: () => void
+  onReject: () => void
+}
+
+/** Apply / Reject, or the final status pill once the proposal is decided. Shared by both proposal cards. */
+export function ProposalFooter({ status, busy, onApply, onReject }: FooterProps) {
+  if (status && status !== 'PENDING') {
+    return <span className={`status-pill status-${status.toLowerCase()}`}>{STATUS_TEXT[status]}</span>
+  }
+  return (
+    <div className="proposal-actions">
+      <button type="button" className="proposal-apply" disabled={busy} onClick={onApply}>
+        Apply
+      </button>
+      <button type="button" disabled={busy} onClick={onReject}>
+        Reject
+      </button>
+    </div>
+  )
+}
+
 /** One line per block that differs between the current plan and the simulated preview. */
 function diffLines(currentBlocks: BlockDto[], previewBlocks: BlockDto[]): string[] {
   const current = new Map(currentBlocks.map((block) => [block.id, block]))
@@ -65,18 +90,7 @@ export function ProposalCard({ rationale, preview, currentBlocks, changes, statu
           ))}
         </ul>
       )}
-      {status && status !== 'PENDING' ? (
-        <span className={`status-pill status-${status.toLowerCase()}`}>{STATUS_TEXT[status]}</span>
-      ) : (
-        <div className="proposal-actions">
-          <button type="button" className="proposal-apply" disabled={busy} onClick={onApply}>
-            Apply
-          </button>
-          <button type="button" disabled={busy} onClick={onReject}>
-            Reject
-          </button>
-        </div>
-      )}
+      <ProposalFooter status={status} busy={busy} onApply={onApply} onReject={onReject} />
     </div>
   )
 }

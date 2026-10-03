@@ -112,11 +112,22 @@ export interface ProposedEventDto {
 
 export type ProposalStatus = 'PENDING' | 'APPLIED' | 'REJECTED' | 'EXPIRED'
 
+export interface PriorityChangeDto {
+  goalId: string
+  goalName: string
+  from: number
+  to: number
+  reason: string
+}
+
 export interface ProposalDto {
+  /** PLAN: changes to today's plan (events + preview). PRIORITIES: new goal priorities (no preview). */
+  kind: 'PLAN' | 'PRIORITIES'
   rationale: string
   events: ProposedEventDto[]
   changes: string[]
-  preview: TodayPlanResponse
+  preview: TodayPlanResponse | null
+  priorityChanges: PriorityChangeDto[]
   status: ProposalStatus
 }
 

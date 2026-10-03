@@ -84,3 +84,18 @@
   color: #633806;
   background: #faeeda;
 }
+
+/* weekly-review rows: "Study 3 → 5 · exam Friday" */
+.proposal-priorities .priority-goal {
+  color: #243b53;
+}
+
+.proposal-priorities .priority-values {
+  font-weight: 600;
+  color: #534ab7;
+  font-variant-numeric: tabular-nums;
+}
+
+.proposal-priorities .priority-reason {
+  color: #627d98;
+}

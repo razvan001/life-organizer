@@ -19,10 +19,12 @@ const PENDING: ChatMessageDto = message({
   role: 'ASSISTANT',
   text: "I'd cancel the gym.",
   proposal: {
+    kind: 'PLAN',
     rationale: 'Gym is off',
     events: [{ type: 'CANCEL_BLOCK', blockId: GYM_ID, reason: null, date: null, title: null, start: null, end: null, energy: null }],
     changes: ['Cancelled Gym - slot is now free'],
     preview: { ...TODAY, blocks: TODAY.blocks.map((b) => (b.id === GYM_ID ? { ...b, status: 'CANCELLED' } : b)) },
+    priorityChanges: [],
     status: 'PENDING',
   },
 })
