@@ -152,6 +152,34 @@
   color: #b42318;
 }
 
+/* --- shortcuts ---------------------------------------------------------------------------- */
+
+.chat-shortcuts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem 0;
+  border-top: 1px solid #e4e7eb;
+}
+
+.chat-chip {
+  margin: 0;
+  padding: 0.25rem 0.85rem;
+  font-size: 0.8rem;
+  color: #3c3489;
+  background: #eeedfe;
+  border: 1px solid #cecbf6;
+  border-radius: 999px;
+}
+
+.chat-chip:hover:not(:disabled) {
+  background: #e0defc;
+}
+
+.chat-chip:disabled {
+  opacity: 0.6;
+}
+
 /* --- input row ---------------------------------------------------------------------------- */
 
 .chat-input {
@@ -159,7 +187,6 @@
   align-items: center;
   gap: 0.5rem;
   padding: 0.75rem 1rem;
-  border-top: 1px solid #e4e7eb;
 }
 
 .chat-input input {

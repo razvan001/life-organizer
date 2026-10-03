@@ -59,7 +59,10 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   `AgentRunner` (tool-calling loop, max 8 model calls, tools in `ai/agent/tools`, validation in
   `ProposedEventValidator`); `ChatService` / `ChatStore` keep a per-day `chat_message` thread with proposal
   statuses, and `send` runs outside any transaction (LLM calls take seconds). Proposals are applied via
-  `POST /api/assistant/chat/messages/{id}/apply` (propose = `simulateEvents`).
+  `POST /api/assistant/chat/messages/{id}/apply` (propose = `simulateEvents`). A proposal is `PLAN` (events on
+  today) or `PRIORITIES` (weekly review via `propose_priorities`; Apply runs `SetupStore.updatePriorities` then
+  `PlanService.replanUntouchedDays`, which drops and regenerates stored days later this week that have only
+  untouched PLANNED engine blocks).
 - `memory/` — RAG. `TextEmbedder` (384 dims) is implemented by `MiniLmTextEmbedder` (quantized all-MiniLM-L6-v2
   via langchain4j ONNX, in-process, always on). `MemoryChunkStore` is plain `JdbcTemplate` SQL on the pgvector
   `memory_chunk` table (vectors passed as `'[..]'::vector` literals, cosine `<=>`, HNSW index); its writes join
@@ -104,5 +107,5 @@ cd frontend && npm run build                  # tsc -b type-check + production b
 - Features go through `docs/superpowers/specs/` (design) and `docs/superpowers/plans/` (task plans); read the
   relevant spec before changing a feature. Phase 2 docs still say Claude/Anthropic; the backend was migrated to
   Groq afterwards.
-- Next planned work: Phase 3b, a planning agent with tools (see the original design spec
-  `2026-09-17-life-organizer-design.md`).
+- Next planned work: Phase 3b slice 3, conflict resolution (`ConflictDetector` is not wired yet; see the original
+  design spec `2026-09-17-life-organizer-design.md`).

@@ -2,8 +2,12 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { api, errorMessage } from '../api/client'
 import type { ApplyEventsResponse, BlockDto, ChatMessageDto } from '../api/types'
 import { useApi } from '../api/useApi'
+import { PriorityProposalCard } from './PriorityProposalCard'
 import { ProposalCard } from './ProposalCard'
 import './ChatPanel.css'
+
+/** What the "Review my week" shortcut sends. */
+const REVIEW_PROMPT = 'Review my week and suggest goal priorities.'
 
 interface Props {
   /** today's date (yyyy-MM-dd), from the plan on screen */
@@ -71,14 +75,13 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
     thread.setData(await api.getChat())
   }
 
-  async function send() {
-    const text = input.trim()
+  async function send(text: string, fromInput: boolean) {
     if (!text) return
     setSending(text)
     setError(null)
     try {
       await api.sendChatMessage({ text })
-      setInput('')
+      if (fromInput) setInput('')
       await reloadThread()
       days.refetch()
     } catch (failure) {
@@ -149,12 +152,31 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
         )}
       </header>
 
-      {showHint && <p className="chat-hint">Try: padel got canceled and I'm tired</p>}
+      {showHint && <p className="chat-hint">Try: padel got canceled and I'm tired, or press Review my week</p>}
       <ul className="chat-messages" aria-label="Conversation" aria-live="polite" ref={conversationRef}>
         {messages.map((message) => (
           <li key={message.id} className={message.role === 'USER' ? 'chat-user' : 'chat-assistant'}>
             <p className="chat-bubble">{message.text}</p>
-            {message.proposal && message.proposal.preview && (
+            {message.proposal?.kind === 'PRIORITIES' && (
+              <PriorityProposalCard
+                rationale={message.proposal.rationale}
+                priorityChanges={message.proposal.priorityChanges}
+                changes={message.proposal.changes}
+                status={readOnly && message.proposal.status === 'PENDING' ? 'EXPIRED' : message.proposal.status}
+                busy={busy}
+                onApply={() =>
+                  act(async () => {
+                    onApplied(await api.applyProposal(message.id))
+                  })
+                }
+                onReject={() =>
+                  act(async () => {
+                    await api.rejectProposal(message.id)
+                  })
+                }
+              />
+            )}
+            {message.proposal && message.proposal.kind !== 'PRIORITIES' && message.proposal.preview && (
               <ProposalCard
                 rationale={message.proposal.rationale}
                 events={message.proposal.events}
@@ -206,33 +228,40 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
       )}
 
       {!readOnly && (
-        <form
-          className="chat-input"
-          onSubmit={(event) => {
-            event.preventDefault()
-            send()
-          }}
-        >
-          <label htmlFor={inputId} className="visually-hidden">
-            Message the assistant
-          </label>
-          <input
-            id={inputId}
-            ref={inputRef}
-            type="text"
-            maxLength={2000}
-            placeholder="Tell the assistant what changed"
-            value={input}
-            disabled={busy}
-            onChange={(event) => setInput(event.target.value)}
-          />
-          <button type="submit" className="chat-send" aria-label="Send" disabled={busy || !input.trim()}>
-            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
-              <path d="M4 12l16-8-6 16-2.5-6.5z" />
-              <path d="M11.5 13.5L20 4" />
-            </svg>
-          </button>
-        </form>
+        <>
+          <div className="chat-shortcuts">
+            <button type="button" className="chat-chip" disabled={busy} onClick={() => send(REVIEW_PROMPT, false)}>
+              Review my week
+            </button>
+          </div>
+          <form
+            className="chat-input"
+            onSubmit={(event) => {
+              event.preventDefault()
+              send(input.trim(), true)
+            }}
+          >
+            <label htmlFor={inputId} className="visually-hidden">
+              Message the assistant
+            </label>
+            <input
+              id={inputId}
+              ref={inputRef}
+              type="text"
+              maxLength={2000}
+              placeholder="Tell the assistant what changed"
+              value={input}
+              disabled={busy}
+              onChange={(event) => setInput(event.target.value)}
+            />
+            <button type="submit" className="chat-send" aria-label="Send" disabled={busy || !input.trim()}>
+              <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true">
+                <path d="M4 12l16-8-6 16-2.5-6.5z" />
+                <path d="M11.5 13.5L20 4" />
+              </svg>
+            </button>
+          </form>
+        </>
       )}
     </section>
   )

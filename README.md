@@ -6,8 +6,8 @@ and re-plans when the day changes (mark done, postpone, cancel, add an event).
 **Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API),
 the React UI, a natural-language assistant (Phase 2, since replaced by the chat agent), RAG memory
 (Phase 3a: a Notes page with semantic search over notes and past days) and Phase 3b's planning-agent chat
-(an assistant on Today that looks things up with tools and proposes plan changes) are done. Weekly
-prioritization and conflict resolution come later.
+(an assistant on Today that looks things up with tools and proposes plan changes, plus a weekly review that
+proposes new goal priorities) are done. Conflict resolution comes later.
 
 ## What you need
 
@@ -98,7 +98,7 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | GET | `/api/assistant/chat?date=` | a day's chat thread (default today) |
 | GET | `/api/assistant/chat/days` | days that have a chat thread, newest first |
 | POST | `/api/assistant/chat/messages` | `{text}` → runs the planning agent on today's thread, returns its reply (and a proposal, if any) |
-| POST | `/api/assistant/chat/messages/{id}/apply` | apply that message's pending proposal to today's plan |
+| POST | `/api/assistant/chat/messages/{id}/apply` | apply that message's pending proposal (today's plan changes, or new goal priorities plus re-planning of untouched later days) |
 | POST | `/api/assistant/chat/messages/{id}/reject` | reject that message's pending proposal |
 | POST | `/api/setup/extract` | turn a free-form brain dump into a goals/constraints preview (not saved; needs `GROQ_API_KEY`) |
 | POST | `/api/plan/today/events/batch` | apply several plan events at once |
@@ -126,7 +126,10 @@ cd backend && ./mvnw spring-boot:run
 Talk to it like "padel got canceled" or "I'm tired, what should I drop today?". The agent looks at today's plan,
 the rest of the week, your goals and your memory (notes and past days) with tools, can simulate changes before
 suggesting them, and proposes one change set per message. Press Apply to make the change or Reject to discard
-it; the assistant never changes the plan itself. Conversations are saved one per day; earlier days can be
+it; the assistant never changes the plan itself. Press **Review my week** for a weekly review: the agent looks
+at what was planned, done, cancelled and postponed this week and proposes new goal priorities; Apply saves them
+and re-plans the days later this week that you have not touched yet (today and days you acted on stay as they
+are). Conversations are saved one per day; earlier days can be
 viewed under "Earlier chats". Without the key, `GET /api/config` reports `aiEnabled:false` and the chat does
 not appear - every other feature is unaffected. The model used is `openai/gpt-oss-120b` (configurable via the
 `app.ai.model` property).

@@ -67,6 +67,58 @@ describe('ChatPanel', () => {
     expect(screen.getByText('Message the assistant', { selector: 'label' })).toHaveClass('visually-hidden')
   })
 
+  it('sends the weekly review prompt from the shortcut and keeps typed text', async () => {
+    const user = userEvent.setup()
+    const fetchMock = mockApi({
+      'GET /api/assistant/chat': () => jsonResponse([]),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
+      'POST /api/assistant/chat/messages': () => jsonResponse(PENDING),
+    })
+    renderPanel()
+    await user.type(await screen.findByLabelText('Message the assistant'), 'draft')
+
+    await user.click(screen.getByRole('button', { name: 'Review my week' }))
+
+    await waitFor(() => {
+      const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
+      expect(JSON.parse(post[1]!.body as string)).toEqual({ text: 'Review my week and suggest goal priorities.' })
+    })
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Review my week' })).toBeEnabled())
+    expect(screen.getByLabelText('Message the assistant')).toHaveValue('draft')
+  })
+
+  it('shows a priorities proposal with its rows and applies it', async () => {
+    const user = userEvent.setup()
+    const priorities: ChatMessageDto = message({
+      id: 3,
+      role: 'ASSISTANT',
+      text: 'I suggest raising Study.',
+      proposal: {
+        kind: 'PRIORITIES',
+        rationale: 'Exam week',
+        events: [],
+        changes: ['Would re-plan Tue 2026-09-15'],
+        preview: null,
+        priorityChanges: [{ goalId: 'career-study', goalName: 'Study', from: 3, to: 5, reason: 'exam Friday' }],
+        status: 'PENDING',
+      },
+    })
+    const applied = { ...TODAY, changes: ['Study: priority 3 -> 5', 'Re-planned Tue 2026-09-15'] }
+    const onApplied = vi.fn()
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse([priorities]),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
+      'POST /api/assistant/chat/messages/3/apply': () => jsonResponse(applied),
+    })
+    renderPanel(onApplied)
+
+    expect(await screen.findByText('Proposed priorities')).toBeInTheDocument()
+    expect(screen.getByText('3 → 5')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Apply' }))
+
+    await waitFor(() => expect(onApplied).toHaveBeenCalledWith(applied))
+  })
+
   it('announces new messages and keeps the Thinking text for screen readers', async () => {
     const user = userEvent.setup()
     mockApi({
@@ -184,6 +236,7 @@ describe('ChatPanel', () => {
     expect(screen.getByText('Expired (a newer message came in)')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Message the assistant')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review my week' })).not.toBeInTheDocument()
 
     await user.selectOptions(screen.getByLabelText('Earlier chats'), '')
     expect(await screen.findByLabelText('Message the assistant')).toBeInTheDocument()
