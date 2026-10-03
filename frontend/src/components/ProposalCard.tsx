@@ -18,7 +18,7 @@ interface Props {
 const STATUS_TEXT: Record<Exclude<ProposalStatus, 'PENDING'>, string> = {
   APPLIED: 'Applied',
   REJECTED: 'Rejected',
-  EXPIRED: 'Expired (a newer message came in)',
+  EXPIRED: 'Expired',
 }
 
 const STATUS_LABEL: Record<string, string> = {

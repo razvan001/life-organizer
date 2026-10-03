@@ -233,7 +233,7 @@ describe('ChatPanel', () => {
     await user.selectOptions(await screen.findByLabelText('Earlier chats'), '2026-09-13')
 
     expect(await screen.findByText('old question')).toBeInTheDocument()
-    expect(screen.getByText('Expired (a newer message came in)')).toBeInTheDocument()
+    expect(screen.getByText('Expired')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
     expect(screen.queryByLabelText('Message the assistant')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Review my week' })).not.toBeInTheDocument()
@@ -258,7 +258,7 @@ describe('ChatPanel', () => {
     await user.click(await screen.findByRole('button', { name: 'Apply' }))
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This proposal is expired and can no longer be used')
-    expect(await screen.findByText('Expired (a newer message came in)')).toBeInTheDocument()
+    expect(await screen.findByText('Expired')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
     expect(onApplied).not.toHaveBeenCalled()
   })

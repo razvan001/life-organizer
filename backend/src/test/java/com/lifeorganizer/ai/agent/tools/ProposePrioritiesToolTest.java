@@ -94,6 +94,7 @@ class ProposePrioritiesToolTest {
         assertError(call(change("career-study", "6", "x")), "priority must be a whole number from 1 to 5");
         assertError(call(change("career-study", "\"5\"", "x")), "priority must be a whole number from 1 to 5");
         assertError(call(change("career-study", "4.5", "x")), "priority must be a whole number from 1 to 5");
+        assertError(call(change("career-study", "4294967301", "x")), "priority must be a whole number from 1 to 5");
         assertError(call(change("career-study", "3", "x")), "Study already has priority 3; leave it out");
         assertError(call("{\"goalId\":\"career-study\",\"priority\":5}"), "reason is required");
     }
@@ -112,6 +113,19 @@ class ProposePrioritiesToolTest {
         assertThatThrownBy(() -> tool.execute(args(call(change("career-chess", "1", "y"))), context))
             .isInstanceOf(ToolException.class)
             .hasMessage("a proposal was already made in this turn; reply to the user now");
+    }
+
+    @Test
+    void aPlanProposalAlreadyMadeThisTurnRefusesPriorities() {
+        TurnContext context = new TurnContext(TODAY);
+        Proposal plan = new Proposal("Gym is off", List.of(), List.of(), null);
+        context.propose(plan);
+
+        assertThatThrownBy(() -> tool.execute(args(call(change("career-study", "5", "x"))), context))
+            .isInstanceOf(ToolException.class)
+            .hasMessage("a proposal was already made in this turn; reply to the user now");
+        assertThat(context.proposal()).containsSame(plan);
+        assertThat(context.proposal().orElseThrow().kind()).isEqualTo(Proposal.Kind.PLAN);
     }
 
     @Test

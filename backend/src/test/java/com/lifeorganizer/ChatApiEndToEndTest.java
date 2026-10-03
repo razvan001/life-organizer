@@ -187,7 +187,7 @@ class ChatApiEndToEndTest {
         org.assertj.core.api.Assertions.assertThat(
             jdbc.queryForObject("select priority from goal where id = 'career-system-design'", Integer.class)).isEqualTo(5);
         org.assertj.core.api.Assertions.assertThat(
-            jdbc.queryForObject("select count(*) from block where block_date ='2026-09-16'", Integer.class)).isPositive();
+            jdbc.queryForObject("select count(*) from block where block_date = '2026-09-15'", Integer.class)).isZero();
         mvc.perform(get("/api/assistant/chat")).andExpect(jsonPath("$[1].proposal.status").value("APPLIED"));
     }
 

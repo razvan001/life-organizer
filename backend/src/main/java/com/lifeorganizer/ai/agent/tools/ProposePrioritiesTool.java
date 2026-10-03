@@ -85,7 +85,8 @@ public class ProposePrioritiesTool implements AgentTool {
                 throw new ToolException("goal '" + goalId + "' appears more than once");
             }
             JsonNode priorityNode = change.path("priority");
-            if (!priorityNode.isIntegralNumber() || priorityNode.asInt() < 1 || priorityNode.asInt() > 5) {
+            if (!priorityNode.isIntegralNumber() || !priorityNode.canConvertToInt()
+                || priorityNode.asInt() < 1 || priorityNode.asInt() > 5) {
                 throw new ToolException("priority must be a whole number from 1 to 5");
             }
             int priority = priorityNode.asInt();

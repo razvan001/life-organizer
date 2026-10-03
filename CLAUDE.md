@@ -36,7 +36,7 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   `MarkDone`, `SetEnergy` (a no-op today), `AddAdhoc`). Wired as beans in `config/EngineConfig`, which also
   provides the `Clock` bean; always use the injected `Clock` for "today".
 - `plan/PlanService` orchestrates engine + persistence. **Days are generated lazily** on first request
-  (`getOrGenerate`, guarded by a Postgres advisory lock) and never regenerated; `loadDaysFor` also generates the
+  (`getOrGenerate`, guarded by a Postgres advisory lock) and never regenerated (except `replanUntouchedDays`, which re-generates untouched days later this week after a priority change); `loadDaysFor` also generates the
   rest of the week for a postpone. Consequence: any method whose call chain can reach `getOrGenerate`/
   `loadDaysFor` must NOT be `@Transactional(readOnly = true)` — Postgres rejects the insert (this shipped as a
   500 once). `simulateEvents` (preview, never persists) and `applyEvents` (atomic batch) are both plain

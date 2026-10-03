@@ -24,6 +24,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -111,6 +113,50 @@ class PlanServiceReplanTest {
         flushAndClear();
 
         assertThat(ids(THU)).containsExactlyInAnyOrderElementsOf(before);
+    }
+
+    @Test
+    void aDayWithADoneBlockIsKept() {
+        storeDay(THU, "thu-old", BlockKind.GOAL, BlockStatus.PLANNED, 0);   // untouched
+        storeDay(FRI, "fri-old", BlockKind.GOAL, BlockStatus.DONE, 0);      // touched: marked done
+        flushAndClear();
+
+        assertThat(planService.untouchedFutureDays(WED)).containsExactly(THU);
+        assertThat(planService.replanUntouchedDays(WED)).containsExactly(THU);
+        flushAndClear();
+
+        assertThat(ids(THU)).doesNotContain("thu-old");
+        assertThat(ids(FRI)).containsExactly("fri-old");
+    }
+
+    private Map<String, Integer> minutesPerGoal() {
+        Map<String, Integer> minutes = new TreeMap<>();
+        for (LocalDate day : List.of(THU, FRI, SAT, SUN)) {
+            for (Block block : planStore.findDay(day).orElseThrow().blocks()) {
+                if (block.goalId() != null) {
+                    minutes.merge(block.goalId(), block.durationMinutes(), Integer::sum);
+                }
+            }
+        }
+        return minutes;
+    }
+
+    @Test
+    void replannedDaysUseTheNewPriorities() {
+        for (LocalDate day : List.of(THU, FRI, SAT, SUN)) {
+            planService.getOrGenerate(day);
+        }
+        flushAndClear();
+        Map<String, Integer> before = minutesPerGoal();
+
+        // the production path updates the priorities and re-plans in one transaction: no flush or clear in between
+        setupStore.updatePriorities(Map.of("career-system-design", 5));
+        List<LocalDate> replanned = planService.replanUntouchedDays(WED);
+        flushAndClear();
+        Map<String, Integer> after = minutesPerGoal();
+
+        assertThat(replanned).containsExactly(THU, FRI, SAT, SUN);
+        assertThat(after.get("career-system-design")).isGreaterThan(before.get("career-system-design"));
     }
 
     @Test

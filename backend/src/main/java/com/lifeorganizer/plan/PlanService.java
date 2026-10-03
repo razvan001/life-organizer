@@ -36,7 +36,8 @@ import java.util.Set;
 
 /**
  * Orchestrates the Phase 1a engine on top of the stores. A day is generated lazily the first time it
- * is requested and is never regenerated afterwards; replan events are applied to persisted rows by diffing.
+ * is requested and is never regenerated afterwards, except by {@code replanUntouchedDays} (untouched days later this
+ * week after a priority change); replan events are applied to persisted rows by diffing.
  */
 @Service
 public class PlanService {
