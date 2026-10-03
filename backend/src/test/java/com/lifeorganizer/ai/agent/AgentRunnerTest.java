@@ -106,7 +106,9 @@ class AgentRunnerTest {
             .contains("never \"I've added\"")
             .contains("get_week_progress")
             .contains("propose_priorities")
-            .contains("never both");
+            .contains("never both")
+            .contains("Never write JSON")
+            .contains("does not apply anything");
         assertThat(sent).extracting(AgentMessage::content).endsWith("earlier", "ok", "hi");
     }
 
@@ -216,6 +218,84 @@ class AgentRunnerTest {
 
         assertThat(client.requests).hasSize(AgentRunner.MAX_MODEL_CALLS);
         assertThat(result).isEqualTo(new AgentTurnResult("I couldn't finish that. Try rephrasing.", null));
+    }
+
+    @Test
+    void aProposalWrittenAsTextIsSentBackOnceSoTheModelCallsTheTool() {
+        ScriptedClient client = new ScriptedClient()
+            .then(text("I propose raising Padel.\n{\"changes\":[{\"goalId\":\"padel\",\"priority\":5}],\"rationale\":\"x\"}"))
+            .then(calls(new ToolCall("c1", "propose", "{}")))
+            .then(text("I suggest raising Padel. Press Apply if you agree."));
+
+        AgentTurnResult result = runner(client).run(List.of(), "review my week");
+
+        assertThat(result).isEqualTo(new AgentTurnResult("I suggest raising Padel. Press Apply if you agree.", PROPOSAL));
+        List<AgentMessage> second = client.requests.get(1);
+        AgentMessage rejected = second.get(second.size() - 2);
+        AgentMessage correction = second.get(second.size() - 1);
+        assertThat(rejected.role()).isEqualTo(AgentMessage.Role.ASSISTANT);
+        assertThat(rejected.content()).startsWith("I propose raising Padel.");
+        assertThat(correction.role()).isEqualTo(AgentMessage.Role.SYSTEM);
+        assertThat(correction.content()).contains("tool arguments as text");
+    }
+
+    @Test
+    void aSecondUngroundedClaimEndsTheTurnWithAnHonestReply() {
+        ScriptedClient client = new ScriptedClient()
+            .then(text("Got it - your new goal priorities have been applied."))
+            .then(text("Done, the priorities have been applied."));
+
+        AgentTurnResult result = runner(client).run(List.of(), "apply");
+
+        assertThat(result).isEqualTo(new AgentTurnResult(
+            "I couldn't turn that into a proposal, so nothing has changed. Please ask again.", null));
+        assertThat(client.requests).hasSize(2);
+    }
+
+    @Test
+    void aDoneClaimNextToAProposalIsRewritten() {
+        ScriptedClient client = new ScriptedClient()
+            .then(calls(new ToolCall("c1", "propose", "{}")))
+            .then(text("I've added a padel session. Press Apply to keep it."))
+            .then(text("I'd add a padel session. Press Apply to keep it."));
+
+        AgentTurnResult result = runner(client).run(List.of(), "add padel");
+
+        assertThat(result).isEqualTo(new AgentTurnResult("I'd add a padel session. Press Apply to keep it.", PROPOSAL));
+        List<AgentMessage> third = client.requests.get(2);
+        assertThat(third.get(third.size() - 1).content()).contains("It is only proposed");
+    }
+
+    @Test
+    void aRepeatedDoneClaimNextToAProposalFallsBackToTheNeutralLine() {
+        ScriptedClient client = new ScriptedClient()
+            .then(calls(new ToolCall("c1", "propose", "{}")))
+            .then(text("I've added a padel session."))
+            .then(text("I have added the padel session."));
+
+        assertThat(runner(client).run(List.of(), "add padel"))
+            .isEqualTo(new AgentTurnResult("Here is what I'd change.", PROPOSAL));
+    }
+
+    @Test
+    void aProblemOnTheLastAllowedCallIsNotRetried() {
+        ScriptedClient client = new ScriptedClient();
+        for (int i = 0; i < AgentRunner.MAX_MODEL_CALLS - 1; i++) {
+            client.then(calls(new ToolCall("c" + i, "echo", "{}")));
+        }
+        client.then(text("Your priorities have been applied."));
+
+        AgentTurnResult result = runner(client).run(List.of(), "apply");
+
+        assertThat(client.requests).hasSize(AgentRunner.MAX_MODEL_CALLS);
+        assertThat(result.reply()).isEqualTo("I couldn't turn that into a proposal, so nothing has changed. Please ask again.");
+    }
+
+    @Test
+    void markdownEmphasisIsRemovedFromTheReply() {
+        ScriptedClient client = new ScriptedClient().then(text("**Chess** could fit from 16:00."));
+
+        assertThat(runner(client).run(List.of(), "hi").reply()).isEqualTo("Chess could fit from 16:00.");
     }
 
     @Test
