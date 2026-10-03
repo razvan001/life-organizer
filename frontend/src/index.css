@@ -28,6 +28,12 @@ header h1 {
   margin: 0 0 0.5rem;
 }
 
+/* logo + app name: the mark stays inline so the header still lines up on the text baseline */
+.brand img {
+  margin-right: 0.5rem;
+  vertical-align: -0.3rem;
+}
+
 nav a {
   margin-left: 1rem;
   color: #486581;

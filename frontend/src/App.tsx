@@ -7,7 +7,11 @@ export default function App() {
   return (
     <div className="app">
       <header>
-        <h1>Life Organizer</h1>
+        <h1 className="brand">
+          {/* the same mark as the browser tab icon (public/favicon.svg) */}
+          <img src="/favicon.svg" alt="" width="24" height="24" />
+          Life Organizer
+        </h1>
         <nav>
           <NavLink to="/" end>
             Today
