@@ -6,7 +6,10 @@ import { TODAY } from '../test/fixtures'
 import { jsonResponse, mockApi, problemResponse } from '../test/mockApi'
 import { ChatPanel } from './ChatPanel'
 
-afterEach(() => vi.unstubAllGlobals())
+afterEach(() => {
+  vi.unstubAllGlobals()
+  localStorage.clear() // the collapsed state is remembered per browser
+})
 
 const GYM_ID = TODAY.blocks[0].id
 
@@ -315,5 +318,66 @@ describe('ChatPanel', () => {
     renderPanel()
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong')
+  })
+
+  it('collapses to the header and expands again, keeping typed text', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse(THREAD),
+      'GET /api/assistant/chat/days': () => jsonResponse(['2026-09-14', '2026-09-13']),
+    })
+    renderPanel()
+    await user.type(await screen.findByLabelText('Message the assistant'), 'draft')
+    const collapse = screen.getByRole('button', { name: 'Collapse assistant' })
+    expect(collapse).toHaveAttribute('aria-expanded', 'true')
+
+    await user.click(collapse)
+
+    expect(screen.getByRole('heading', { name: 'Assistant' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Conversation' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Message the assistant')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Review my week' })).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Earlier chats')).not.toBeInTheDocument()
+    const expand = screen.getByRole('button', { name: 'Expand assistant' })
+    expect(expand).toHaveAttribute('aria-expanded', 'false')
+
+    await user.click(expand)
+
+    expect(screen.getByText("I'd cancel the gym.")).toBeInTheDocument()
+    expect(screen.getByLabelText('Message the assistant')).toHaveValue('draft')
+    expect(screen.getByLabelText('Earlier chats')).toBeInTheDocument()
+  })
+
+  it('remembers that the assistant was collapsed', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse(THREAD),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
+    })
+    const first = render(<ChatPanel today="2026-09-14" currentBlocks={TODAY.blocks} busy={false} onApplied={vi.fn()} />)
+    await user.click(await screen.findByRole('button', { name: 'Collapse assistant' }))
+    first.unmount()
+
+    renderPanel()
+
+    expect(await screen.findByRole('button', { name: 'Expand assistant' })).toBeInTheDocument()
+    expect(screen.queryByRole('list', { name: 'Conversation' })).not.toBeInTheDocument()
+  })
+
+  it('still collapses when the browser storage is unavailable', async () => {
+    const user = userEvent.setup()
+    mockApi({
+      'GET /api/assistant/chat': () => jsonResponse(THREAD),
+      'GET /api/assistant/chat/days': () => jsonResponse([]),
+    })
+    const blocked = () => {
+      throw new Error('blocked')
+    }
+    vi.stubGlobal('localStorage', { getItem: blocked, setItem: blocked, clear: () => {} })
+
+    renderPanel()
+    await user.click(await screen.findByRole('button', { name: 'Collapse assistant' }))
+
+    expect(screen.getByRole('button', { name: 'Expand assistant' })).toBeInTheDocument()
   })
 })

@@ -40,12 +40,63 @@
 }
 
 .chat-avatar svg,
-.chat-send svg {
+.chat-send svg,
+.chat-toggle svg {
   fill: none;
   stroke: currentColor;
   stroke-width: 1.8;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+/* collapsed: only the header row is left */
+.chat-collapsed .chat-header {
+  border-bottom: none;
+}
+
+.chat-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.chat-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin: 0;
+  padding: 0;
+  color: #486581;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 50%;
+}
+
+.chat-toggle:hover {
+  background: #f0f4f8;
+}
+
+.chat-toggle:focus-visible {
+  outline: none;
+  border-color: #486581;
+  box-shadow: 0 0 0 3px rgba(72, 101, 129, 0.2);
+}
+
+/* the chevron points up while open and down once collapsed */
+.chat-toggle svg {
+  transition: transform 0.15s ease;
+}
+
+.chat-collapsed .chat-toggle svg {
+  transform: rotate(180deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-toggle svg {
+    transition: none;
+  }
 }
 
 .chat-days select {
