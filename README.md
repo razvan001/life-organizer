@@ -1,13 +1,72 @@
 # Life Organizer
 
-A personal day planner. Paste your goals and your constraints once; the app builds today's plan,
-and re-plans when the day changes (mark done, postpone, cancel, add an event).
+A personal day planner with an AI assistant that is only allowed to *propose*.
 
-**Status:** the scheduling engine (Phase 1a), the backend (Phase 1b: Postgres persistence and the REST API),
-the React UI, a natural-language assistant (Phase 2, since replaced by the chat agent), RAG memory
-(Phase 3a: a Notes page with semantic search over notes and past days) and Phase 3b's planning-agent chat
-(an assistant on Today that looks things up with tools and proposes plan changes, plus a weekly review that
-proposes new goal priorities) are done. Conflict resolution comes later.
+Paste your goals and your constraints once. A deterministic scheduling engine builds a time-blocked plan for
+today and re-plans when the day changes (done, postponed, cancelled, something new came up). On top of it sits a
+tool-calling LLM agent you can talk to ("padel got canceled and I'm tired", "review my week"): it reads your
+plan, your week and your own notes, simulates changes with the real engine, and shows a proposal card. Nothing
+changes until you press **Apply**.
+
+## What is in it
+
+- **Scheduling engine** — plain Java, no framework. Weekly quotas ("Learning: 5h/week", "Gym: 4x/week") are
+  split across goals by priority and deadline, placed into free time, and re-planned event by event.
+- **Chat agent with tools** — a server-side tool-calling loop (Groq, `openai/gpt-oss-120b`). The agent can read,
+  search memory and simulate; the only thing that writes is the user applying a proposal.
+- **Weekly review** — one button: the agent looks at what was planned, done, cancelled and postponed, proposes
+  new goal priorities, and on Apply the untouched days later in the week are planned again.
+- **Memory (RAG)** — your notes and a one-line summary of every past day, embedded locally (all-MiniLM-L6-v2,
+  in-process, no API key) and searched with pgvector. "Tired after a workout" finds "after gym I can't focus".
+- **Guard rails around the model** — every proposed event is validated and simulated before it becomes a card;
+  a reply that claims a change without a recorded proposal is sent back for correction; rate limits are waited
+  out instead of failing the turn.
+- **Tests** — about 400 backend tests (unit, slice, and end-to-end against a real Postgres via Testcontainers)
+  and about 150 frontend tests. No test needs an API key: the model is scripted.
+
+## How it fits together
+
+```mermaid
+flowchart LR
+    You((You)) --> UI["React UI<br/>Today · Setup · Notes"]
+    UI -->|"/api"| API["Spring Boot REST API"]
+    API --> Plan["PlanService<br/>lazy day generation, replan"]
+    Plan --> Engine["Scheduling engine<br/>WeekAllocator → DayScheduler → Replanner"]
+    Plan --> DB[("Postgres 17<br/>+ pgvector")]
+    API --> Agent["Chat agent<br/>tool loop · validators · reply guard"]
+    Agent -->|"read · simulate · propose"| Plan
+    Agent --> Memory["Memory search<br/>local MiniLM embeddings"]
+    Memory --> DB
+    Agent -->|"chat completions + tools"| LLM["Groq LLM"]
+    UI -. "Apply / Reject a proposal" .-> API
+```
+
+Three decisions shape the code:
+
+1. **The engine decides, the model suggests.** Time is placed by deterministic code that can be unit-tested.
+   The LLM never edits the plan; it emits the same events the buttons do, and the engine simulates them first.
+2. **Model output is never trusted.** Block ids, goal ids, priorities and event shapes are checked server-side;
+   a problem goes back to the model as a tool error it can fix, never to the user as a broken plan.
+3. **Days are generated lazily and kept.** A day is planned the first time it is needed and then stored, so the
+   plan you acted on does not shift under you when goals change.
+
+## Tech stack
+
+| Layer | Choice |
+|---|---|
+| Backend | Java 21, Spring Boot 4.1, Spring Data JPA, Flyway |
+| Database | Postgres 17 with pgvector (HNSW cosine index) |
+| AI | Groq chat completions with function tools (plain `RestClient`, no SDK); langchain4j ONNX MiniLM for embeddings |
+| Frontend | React 19, TypeScript, Vite, React Router; no state or data-fetching library |
+| Tests | JUnit 5, Testcontainers, MockMvc, Vitest, Testing Library |
+| CI | GitHub Actions: backend suite, frontend tests and type-checked build |
+
+**Status:** engine, persistence and REST API, React UI, RAG memory, the chat agent and the weekly review are
+done. Not built: login (it is a single-user app for localhost), calendar sync, and automatic conflict resolution.
+
+The features were designed and built one slice at a time with written specs and task plans (see
+[Design documents](#design-documents)), using Claude Code as a pair programmer; every change was reviewed before
+it was committed.
 
 ## What you need
 
@@ -177,9 +236,20 @@ Past days are indexed when the backend starts and every night at 00:05.
 ```bash
 cd backend && ./mvnw test    # needs Docker running; spins up a throwaway Postgres per test class
 # Windows PowerShell: cd backend; .\mvnw.cmd test
+
+cd frontend && npm test      # Vitest, no backend needed
+cd frontend && npm run build # type-check + production bundle
 ```
+
+The same three commands run on every push and pull request (`.github/workflows/ci.yml`).
 
 ## Design documents
 
-- `docs/superpowers/specs/` — design specs (Phase 1, Phase 1b)
-- `docs/superpowers/plans/` — implementation plans
+Each feature has a design spec and a task plan, written before the code:
+
+- [`docs/superpowers/specs/`](docs/superpowers/specs/) — design specs: the original design, the backend and UI,
+  natural-language commands, brain-dump extraction, RAG memory, the chat agent, the weekly review
+- [`docs/superpowers/plans/`](docs/superpowers/plans/) — the implementation plan for each of them
+
+The Phase 2 documents describe an earlier version of the assistant built on another provider; the backend was
+later moved to Groq and the one-shot command box was replaced by the chat agent.
