@@ -32,6 +32,11 @@ public class GetTodayPlanTool implements AgentTool {
     }
 
     @Override
+    public String contextLabel() {
+        return "Today's plan (block ids are exact)";
+    }
+
+    @Override
     public String parametersJson() {
         return "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
     }

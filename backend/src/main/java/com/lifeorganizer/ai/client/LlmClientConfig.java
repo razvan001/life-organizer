@@ -29,8 +29,9 @@ public class LlmClientConfig {
     @Bean
     @ConditionalOnProperty(name = "GROQ_API_KEY")
     public AgentLlmClient agentLlmClient(@Value("${GROQ_API_KEY}") String apiKey,
-                                         @Value("${app.ai.model:openai/gpt-oss-120b}") String model) {
-        return new GroqAgentClient(groqRestClient(apiKey), model);
+                                         @Value("${app.ai.model:openai/gpt-oss-120b}") String model,
+                                         @Value("${app.ai.reasoning-effort:low}") String reasoningEffort) {
+        return new GroqAgentClient(groqRestClient(apiKey), model, reasoningEffort);
     }
 
     private static RestClient groqRestClient(String apiKey) {

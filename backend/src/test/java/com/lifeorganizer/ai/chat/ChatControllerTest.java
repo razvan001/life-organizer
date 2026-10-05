@@ -10,9 +10,12 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 
 import java.time.Clock;
@@ -103,6 +106,16 @@ class ChatControllerTest {
         mvc.perform(post("/api/assistant/chat/messages").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"hello\"}"))
             .andExpect(status().isBadGateway())
             .andExpect(jsonPath("$.title").value("Assistant unavailable"));
+    }
+
+    @Test
+    void aRateLimitedAssistantSaysSo() throws Exception {
+        when(chat.send("hello")).thenThrow(HttpClientErrorException.create(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests",
+            HttpHeaders.EMPTY, new byte[0], null));
+
+        mvc.perform(post("/api/assistant/chat/messages").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"hello\"}"))
+            .andExpect(status().isBadGateway())
+            .andExpect(jsonPath("$.detail").value("The assistant is rate limited right now. Wait a minute and try again."));
     }
 
     @Test

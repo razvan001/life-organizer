@@ -54,6 +54,9 @@ class ReadToolsTest {
 
         assertThat(tools).extracting(AgentTool::name)
             .containsExactly("get_today_plan", "get_week_overview", "list_goals", "search_memory");
+        // only today's plan is loaded into every turn; the others stay tools the model may call
+        assertThat(tools).extracting(AgentTool::contextLabel)
+            .containsExactly("Today's plan (block ids are exact)", null, null, null);
         assertThat(tools).allSatisfy(tool -> {
             assertThat(tool.description()).isNotBlank();
             assertThat(ToolJson.MAPPER.readTree(tool.parametersJson()).path("type").asString()).isEqualTo("object");

@@ -54,7 +54,7 @@ public class ProposePrioritiesTool implements AgentTool {
             {"type":"object","properties":{
               "rationale":{"type":"string","description":"one short sentence the user sees above the changes"},
               "changes":{"type":"array","minItems":1,"maxItems":8,"items":{"type":"object","properties":{
-                "goalId":{"type":"string","description":"exact goal id from list_goals or get_week_progress"},
+                "goalId":{"type":"string","description":"exact goal id from Current data or list_goals"},
                 "priority":{"type":"integer","minimum":1,"maximum":5},
                 "reason":{"type":"string","description":"a few words on why"}},
                 "required":["goalId","priority","reason"],"additionalProperties":false}}},
@@ -79,7 +79,7 @@ public class ProposePrioritiesTool implements AgentTool {
             String goalId = ToolJson.requiredText(change, "goalId", 255);
             Goal goal = goals.get(goalId);
             if (goal == null) {
-                throw new ToolException("unknown goalId '" + goalId + "'; use the ids from list_goals or get_week_progress");
+                throw new ToolException("unknown goalId '" + goalId + "'; use a goal id from Current data or list_goals");
             }
             if (!seen.add(goalId)) {
                 throw new ToolException("goal '" + goalId + "' appears more than once");

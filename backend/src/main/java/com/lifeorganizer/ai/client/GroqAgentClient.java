@@ -23,9 +23,21 @@ public class GroqAgentClient implements AgentLlmClient {
 
     private final GroqChatClient chat;
     private final JsonMapper jsonMapper = JsonMapper.builder().build();
+    private final String reasoningEffort;
 
     public GroqAgentClient(RestClient restClient, String model) {
+        this(restClient, model, null);
+    }
+
+    /** reasoningEffort is sent as Groq's reasoning_effort (low, medium or high for gpt-oss); blank leaves it out. */
+    public GroqAgentClient(RestClient restClient, String model, String reasoningEffort) {
         this.chat = new GroqChatClient(restClient, model);
+        this.reasoningEffort = reasoningEffort;
+    }
+
+    GroqAgentClient(RestClient restClient, String model, String reasoningEffort, GroqChatClient.Sleeper sleeper) {
+        this.chat = new GroqChatClient(restClient, model, sleeper);
+        this.reasoningEffort = reasoningEffort;
     }
 
     @Override
@@ -33,6 +45,10 @@ public class GroqAgentClient implements AgentLlmClient {
         Map<String, Object> extra = new LinkedHashMap<>();
         extra.put("tools", tools.stream().map(this::toolJson).toList());
         extra.put("tool_choice", "auto");
+        if (reasoningEffort != null && !reasoningEffort.isBlank()) {
+            // Reasoning tokens count against the tokens-per-minute limit, and the agent's steps are simple.
+            extra.put("reasoning_effort", reasoningEffort.strip());
+        }
         GroqChatClient.ChatMessage message;
         try {
             message = chat.send(messages.stream().map(GroqAgentClient::messageJson).toList(), extra);

@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClientException;
 
 import java.time.Clock;
@@ -63,6 +64,10 @@ public class ChatController {
         }
         try {
             return chat.send(text);
+        } catch (HttpClientErrorException.TooManyRequests e) {
+            // The client already waited and retried: this is a longer limit, or several turns within one minute.
+            throw new AssistantUnavailableException(
+                "The assistant is rate limited right now. Wait a minute and try again.", e);
         } catch (RestClientException e) {
             throw new AssistantUnavailableException("The assistant is unavailable right now", e);
         }

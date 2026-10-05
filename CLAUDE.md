@@ -57,7 +57,11 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   (only today's, never `FREE` blocks) and runs each event through `ApplyEventRequest.toEvent`;
   `SetupExtractionService` defaults or drops invalid values with warnings. The planning agent is
   `AgentRunner` (tool-calling loop, max 8 model calls, tools in `ai/agent/tools`, validation in
-  `ProposedEventValidator`); `ChatService` / `ChatStore` keep a per-day `chat_message` thread with proposal
+  `ProposedEventValidator`). Every model call resends the prompt and all tool definitions (about 2.5K tokens)
+  and Groq's free tier allows 8K tokens per minute, so model calls per turn are scarce: a tool with a
+  `contextLabel()` (today's plan, week progress) is run up front and put into a "Current data" message instead
+  of being offered to the model, and `ReplyGuard` sends back a reply that claims or spells out a change without
+  a recorded proposal. `ChatService` / `ChatStore` keep a per-day `chat_message` thread with proposal
   statuses, and `send` runs outside any transaction (LLM calls take seconds). Proposals are applied via
   `POST /api/assistant/chat/messages/{id}/apply` (propose = `simulateEvents`). A proposal is `PLAN` (events on
   today) or `PRIORITIES` (weekly review via `propose_priorities`; Apply runs `SetupStore.updatePriorities` then

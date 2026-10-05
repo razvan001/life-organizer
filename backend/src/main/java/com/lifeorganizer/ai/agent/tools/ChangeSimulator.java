@@ -64,7 +64,7 @@ public class ChangeSimulator {
     static final String EVENTS_SCHEMA = """
         {"type":"array","minItems":1,"maxItems":5,"items":{"type":"object","properties":{
           "type":{"type":"string","enum":["CANCEL_BLOCK","POSTPONE_BLOCK","MARK_DONE","SET_ENERGY","ADD_ADHOC"]},
-          "blockId":{"type":"string","description":"exact id from get_today_plan; not for ADD_ADHOC"},
+          "blockId":{"type":"string","description":"exact id from today's plan in Current data; not for ADD_ADHOC"},
           "reason":{"type":"string","description":"optional, POSTPONE_BLOCK only"},
           "title":{"type":"string","description":"ADD_ADHOC only"},
           "start":{"type":"string","description":"HH:mm, ADD_ADHOC only"},

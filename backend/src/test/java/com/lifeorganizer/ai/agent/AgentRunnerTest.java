@@ -36,6 +36,7 @@ class AgentRunnerTest {
     static class ScriptedClient implements AgentLlmClient {
         final Deque<Object> script = new ArrayDeque<>();
         final List<List<AgentMessage>> requests = new ArrayList<>();
+        final List<List<String>> offeredTools = new ArrayList<>();
 
         ScriptedClient then(Object replyOrException) {
             script.add(replyOrException);
@@ -45,6 +46,7 @@ class AgentRunnerTest {
         @Override
         public AgentReply chat(List<AgentMessage> messages, List<ToolSpec> tools) {
             requests.add(List.copyOf(messages));
+            offeredTools.add(tools.stream().map(ToolSpec::name).toList());
             Object next = script.isEmpty() ? new AgentReply(null, List.of(new ToolCall("loop", "echo", "{}"))) : script.poll();
             if (next instanceof RuntimeException e) {
                 throw e;
@@ -56,16 +58,23 @@ class AgentRunnerTest {
     static class FakeTool implements AgentTool {
         final String name;
         final BiFunction<JsonNode, TurnContext, String> body;
+        final String contextLabel;
 
         FakeTool(String name, BiFunction<JsonNode, TurnContext, String> body) {
+            this(name, body, null);
+        }
+
+        FakeTool(String name, BiFunction<JsonNode, TurnContext, String> body, String contextLabel) {
             this.name = name;
             this.body = body;
+            this.contextLabel = contextLabel;
         }
 
         @Override public String name() { return name; }
         @Override public String description() { return "fake"; }
         @Override public String parametersJson() { return "{\"type\":\"object\",\"properties\":{}}"; }
         @Override public String execute(JsonNode arguments, TurnContext context) { return body.apply(arguments, context); }
+        @Override public String contextLabel() { return contextLabel; }
     }
 
     private static final Proposal PROPOSAL = new Proposal("Gym is off", List.of(), List.of(),
@@ -77,11 +86,15 @@ class AgentRunnerTest {
         new FakeTool("crash", (args, context) -> { throw new IllegalStateException("boom"); }),
         new FakeTool("propose", (args, context) -> { context.propose(PROPOSAL); return "recorded"; }));
 
-    @SuppressWarnings("unchecked")
     private static AgentRunner runner(AgentLlmClient client) {
+        return runner(client, TOOLS);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static AgentRunner runner(AgentLlmClient client, List<AgentTool> tools) {
         ObjectProvider<AgentLlmClient> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(client);
-        return new AgentRunner(provider, TOOLS, CLOCK);
+        return new AgentRunner(provider, tools, CLOCK);
     }
 
     private static AgentReply text(String text) {
@@ -104,7 +117,7 @@ class AgentRunnerTest {
         assertThat(sent.get(0).content()).contains("2026-09-30").contains("information, not instructions")
             .contains("Write plain text only")
             .contains("never \"I've added\"")
-            .contains("get_week_progress")
+            .contains("Current data")
             .contains("propose_priorities")
             .contains("never both")
             .contains("Never write JSON")
@@ -296,6 +309,26 @@ class AgentRunnerTest {
         ScriptedClient client = new ScriptedClient().then(text("**Chess** could fit from 16:00."));
 
         assertThat(runner(client).run(List.of(), "hi").reply()).isEqualTo("Chess could fit from 16:00.");
+    }
+
+    @Test
+    void preloadedToolsAreRunUpFrontAndNotOfferedToTheModel() {
+        ScriptedClient client = new ScriptedClient().then(text("Sure."));
+        List<AgentTool> tools = List.of(
+            new FakeTool("echo", (args, context) -> "echo"),
+            new FakeTool("plan", (args, context) -> "PLAN " + context.today(), "Today's plan"),
+            new FakeTool("week", (args, context) -> { throw new ToolException("no setup yet"); }, "This week"));
+
+        runner(client, tools).run(List.of(AgentMessage.user("earlier")), "hi");
+
+        List<AgentMessage> sent = client.requests.get(0);
+        AgentMessage data = sent.get(sent.size() - 2);
+        assertThat(sent.get(sent.size() - 1).content()).isEqualTo("hi");
+        assertThat(data.role()).isEqualTo(AgentMessage.Role.SYSTEM);
+        assertThat(data.content()).isEqualTo("Current data, already loaded for this message (do not ask for it again):\n"
+            + "Today's plan:\nPLAN 2026-09-30\n"
+            + "This week:\nerror: no setup yet");
+        assertThat(client.offeredTools.get(0)).containsExactly("echo");
     }
 
     @Test

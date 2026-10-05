@@ -38,20 +38,23 @@ public class AgentRunner {
     static final int MAX_HISTORY = 20;
     static final String FALLBACK = "I couldn't finish that. Try rephrasing.";
     static final String PROPOSAL_ONLY = "Here is what I'd change.";
-    static final String NOT_RECORDED = "I couldn't turn that into a proposal, so nothing has changed. Please ask again.";
+    static final String CURRENT_DATA = "Current data, already loaded for this message (do not ask for it again):";
+    static final String NOT_RECORDED ="I couldn't turn that into a proposal, so nothing has changed. Please ask again.";
 
     private static final Logger log = LoggerFactory.getLogger(AgentRunner.class);
 
     private static final String SYSTEM_PROMPT = """
         You are the planning assistant inside a personal day planner. Today is %s (%s).
-        You help the user adjust TODAY's plan and review their week through conversation. Tools:
-        - get_today_plan: today's blocks with their ids. Call it before proposing plan changes.
+        You help the user adjust TODAY's plan and review their week through conversation.
+        A "Current data" message before the user's message already holds today's plan (blocks with their ids) and
+        this week so far per goal (id, priority, deadline, minutes planned and done, sessions cancelled and
+        postponed). Use it directly; there is no tool for it. Tools:
         - get_week_overview: the rest of this week, for context only.
-        - get_week_progress: per goal, what was planned, done, cancelled and postponed this week so far.
-        - list_goals: the user's goals and priorities.
+        - list_goals: more detail on the goals (category, preferred time, energy, session length).
         - search_memory: the user's own notes and summaries of past days. Use it when the user mentions how they
           feel, what usually works for them, or past days.
-        - simulate_changes: try a set of changes and see what the planner would do.
+        - simulate_changes: try a set of changes and see what the planner would do. Only for comparing options:
+          propose_changes checks and simulates by itself.
         - propose_changes: record ONE final proposal of changes to today's plan for the user to Apply or Reject.
         - propose_priorities: record ONE final proposal of new goal priorities for the user to Apply or Reject.
         Rules:
@@ -59,13 +62,14 @@ public class AgentRunner {
           or Reject. After proposing, say what you propose ("I'd cancel Padel...", "I suggest raising Study...") and
           that they can press Apply - never "I've added", "I've cancelled", "I've moved", "I've changed" or
           "it's done".
-        - Only propose plan changes to today's blocks, using exact block ids from get_today_plan. Never target FREE
+        - Only propose plan changes to today's blocks, using exact block ids from Current data. Never target FREE
           blocks: they are open time, not commitments.
         - Allowed events: CANCEL_BLOCK, POSTPONE_BLOCK (optional reason), MARK_DONE, SET_ENERGY (energy LOW or
           MEDIUM), ADD_ADHOC (title, start and end as HH:mm, today only).
         - There is no "move" event: to move something, postpone it, or cancel it and add an ad-hoc block.
-        - Weekly review: when the user asks to review or plan their week, call get_week_progress (and search_memory
-          when useful), then propose_priorities. Priorities go from 1 (least) to 5 (most important). Include only
+        - Weekly review: when the user asks to review or plan their week, read the week so far in Current data (and
+          call search_memory when useful), then call propose_priorities. Priorities go from 1 (least) to 5 (most
+          important). Include only
           goals whose priority should change, each with a short reason. Applying them re-plans the days later this
           week that the user has not touched yet; today stays as it is.
         - Call propose_changes or propose_priorities at most once per message, never both. propose_changes takes at
@@ -88,12 +92,15 @@ public class AgentRunner {
     private final ObjectProvider<AgentLlmClient> clientProvider;
     private final Map<String, AgentTool> tools = new LinkedHashMap<>();
     private final List<ToolSpec> specs;
+    private final List<AgentTool> preloaded;
     private final Clock clock;
 
     public AgentRunner(ObjectProvider<AgentLlmClient> clientProvider, List<AgentTool> tools, Clock clock) {
         this.clientProvider = clientProvider;
         tools.forEach(tool -> this.tools.put(tool.name(), tool));
-        this.specs = tools.stream().map(AgentTool::spec).toList();
+        // A preloaded tool's result goes into every turn's context, so the model is not offered the tool itself.
+        this.preloaded = tools.stream().filter(tool -> tool.contextLabel() != null).toList();
+        this.specs = tools.stream().filter(tool -> tool.contextLabel() == null).map(AgentTool::spec).toList();
         this.clock = clock;
     }
 
@@ -108,6 +115,9 @@ public class AgentRunner {
         messages.add(AgentMessage.system(SYSTEM_PROMPT.formatted(today,
             today.getDayOfWeek().getDisplayName(TextStyle.FULL, Locale.ENGLISH))));
         messages.addAll(history.subList(Math.max(0, history.size() - MAX_HISTORY), history.size()));
+        if (!preloaded.isEmpty()) {
+            messages.add(AgentMessage.system(currentData(context)));
+        }
         messages.add(AgentMessage.user(userText));
         log.info("Agent turn for {}: text.length={} history={}", today, userText.length(), history.size());
 
@@ -160,6 +170,20 @@ public class AgentRunner {
         return context.proposal()
             .map(proposal -> new AgentTurnResult(PROPOSAL_ONLY, proposal))
             .orElseGet(() -> new AgentTurnResult(FALLBACK, null));
+    }
+
+    /**
+     * What every turn needs, loaded once up front. Each model call resends the whole prompt and every tool
+     * definition, and the provider's tokens-per-minute limit is tight, so a read the model would always make is
+     * cheaper as context than as a tool call.
+     */
+    private String currentData(TurnContext context) {
+        StringBuilder data = new StringBuilder(CURRENT_DATA);
+        for (AgentTool tool : preloaded) {
+            data.append('\n').append(tool.contextLabel()).append(":\n")
+                .append(execute(new ToolCall("preload", tool.name(), "{}"), context));
+        }
+        return data.toString();
     }
 
     /** The model kept claiming or spelling out a change: say only what is true. */

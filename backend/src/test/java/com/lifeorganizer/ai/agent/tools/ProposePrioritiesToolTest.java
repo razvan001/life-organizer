@@ -88,7 +88,7 @@ class ProposePrioritiesToolTest {
         assertError("{\"rationale\":\"r\",\"changes\":[]}", "changes must be an array of 1 to 8 change objects");
         assertError("{\"rationale\":\"r\",\"changes\":\"all\"}", "changes must be an array of 1 to 8 change objects");
         assertError(call("1"), "each change must be an object");
-        assertError(call(change("nope", "5", "x")), "unknown goalId 'nope'; use the ids from list_goals or get_week_progress");
+        assertError(call(change("nope", "5", "x")), "unknown goalId 'nope'; use a goal id from Current data or list_goals");
         assertError(call(change("career-study", "5", "x"), change("career-study", "4", "y")),
             "goal 'career-study' appears more than once");
         assertError(call(change("career-study", "6", "x")), "priority must be a whole number from 1 to 5");

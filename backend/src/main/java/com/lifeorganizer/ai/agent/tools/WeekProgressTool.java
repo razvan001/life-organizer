@@ -44,6 +44,11 @@ public class WeekProgressTool implements AgentTool {
     }
 
     @Override
+    public String contextLabel() {
+        return "This week so far, per goal";
+    }
+
+    @Override
     public String parametersJson() {
         return "{\"type\":\"object\",\"properties\":{},\"additionalProperties\":false}";
     }

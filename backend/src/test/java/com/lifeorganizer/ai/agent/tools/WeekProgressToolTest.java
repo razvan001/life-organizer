@@ -77,6 +77,7 @@ class WeekProgressToolTest {
         WeekProgressTool tool = new WeekProgressTool(mock(PlanStore.class), mock(SetupStore.class));
 
         assertThat(tool.name()).isEqualTo("get_week_progress");
+        assertThat(tool.contextLabel()).isEqualTo("This week so far, per goal");
         assertThat(tool.description()).isNotBlank();
         assertThat(ToolJson.MAPPER.readTree(tool.parametersJson()).path("type").asString()).isEqualTo("object");
     }

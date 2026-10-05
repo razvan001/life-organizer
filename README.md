@@ -134,6 +134,13 @@ viewed under "Earlier chats". Without the key, `GET /api/config` reports `aiEnab
 not appear - every other feature is unaffected. The model used is `openai/gpt-oss-120b` (configurable via the
 `app.ai.model` property).
 
+Groq's free tier allows 8,000 tokens per minute for this model, which is about what one chat turn uses. When the
+limit is hit the backend waits the few seconds Groq asks for and retries (up to three attempts per call, never
+more than 30 seconds each), so a reply can take a while; if it still fails the chat says the assistant is rate
+limited. The backend log shows the tokens each call used (`Groq usage: ...`). The agent asks the model for low
+reasoning effort to save tokens (`app.ai.reasoning-effort`: `low`, `medium`, `high`, or empty for a model that
+does not support it).
+
 ## Memory (RAG)
 
 The Notes page stores your own notes and searches them together with a one-line summary of every past day

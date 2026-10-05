@@ -9,9 +9,12 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 
+import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -31,10 +34,107 @@ class GroqAgentClientTest {
     private MockRestServiceServer server;
     private GroqAgentClient sut;
 
+    /** Every pause the client asked for; nothing really sleeps in these tests. */
+    private final List<Duration> waits = new ArrayList<>();
+
+    private static final String RATE_LIMITED = """
+        {"error":{"message":"Rate limit reached for model `openai/gpt-oss-120b` on tokens per minute (TPM): \
+        Limit 8000, Used 6780, Requested 2696. Please try again in 11.07s.","type":"tokens","code":"rate_limit_exceeded"}}
+        """;
+    private static final String TEXT_REPLY = """
+        {"choices":[{"message":{"content":"ok"}}],
+         "usage":{"prompt_tokens":2700,"completion_tokens":120,"total_tokens":2820,
+                  "prompt_tokens_details":{"cached_tokens":2048},"completion_tokens_details":{"reasoning_tokens":80}}}
+        """;
+
     private void setUp() {
+        setUp(null);
+    }
+
+    private void setUp(String reasoningEffort) {
         RestClient.Builder builder = RestClient.builder().baseUrl(ENDPOINT);
         server = MockRestServiceServer.bindTo(builder).build();
-        sut = new GroqAgentClient(builder.build(), "openai/gpt-oss-120b");
+        sut = new GroqAgentClient(builder.build(), "openai/gpt-oss-120b", reasoningEffort, waits::add);
+    }
+
+    private AgentReply chat() {
+        return sut.chat(List.of(AgentMessage.user("hi")), List.of(TOOL));
+    }
+
+    @Test
+    void waitsAsLongAsGroqAsksAndRetriesWhenRateLimited() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+            .header("retry-after", "11").contentType(MediaType.APPLICATION_JSON).body(RATE_LIMITED));
+        server.expect(requestTo(ENDPOINT)).andRespond(withSuccess(TEXT_REPLY, MediaType.APPLICATION_JSON));
+
+        assertThat(chat().content()).isEqualTo("ok");
+
+        assertThat(waits).containsExactly(Duration.ofSeconds(12)); // retry-after plus a one-second margin
+        server.verify();
+    }
+
+    @Test
+    void readsTheWaitFromTheMessageWhenThereIsNoHeader() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+            .contentType(MediaType.APPLICATION_JSON).body(RATE_LIMITED));
+        server.expect(requestTo(ENDPOINT)).andRespond(withSuccess(TEXT_REPLY, MediaType.APPLICATION_JSON));
+
+        assertThat(chat().content()).isEqualTo("ok");
+
+        assertThat(waits).containsExactly(Duration.ofMillis(12_070));
+    }
+
+    @Test
+    void aLongRateLimitWaitIsNotRetried() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+            .header("retry-after", "300").contentType(MediaType.APPLICATION_JSON).body(RATE_LIMITED));
+
+        assertThatThrownBy(this::chat).isInstanceOf(HttpClientErrorException.TooManyRequests.class);
+
+        assertThat(waits).isEmpty();
+    }
+
+    @Test
+    void anUnknownRateLimitWaitIsNotRetried() {
+        setUp();
+        server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+            .contentType(MediaType.APPLICATION_JSON).body("{\"error\":{\"message\":\"Too many requests\"}}"));
+
+        assertThatThrownBy(this::chat).isInstanceOf(HttpClientErrorException.TooManyRequests.class);
+
+        assertThat(waits).isEmpty();
+    }
+
+    @Test
+    void givesUpAfterThreeRateLimitedAttempts() {
+        setUp();
+        for (int attempt = 0; attempt < 3; attempt++) {
+            server.expect(requestTo(ENDPOINT)).andRespond(withStatus(HttpStatus.TOO_MANY_REQUESTS)
+                .header("retry-after", "2").contentType(MediaType.APPLICATION_JSON).body(RATE_LIMITED));
+        }
+
+        assertThatThrownBy(this::chat).isInstanceOf(HttpClientErrorException.TooManyRequests.class);
+
+        assertThat(waits).containsExactly(Duration.ofSeconds(3), Duration.ofSeconds(3));
+        server.verify();
+    }
+
+    @Test
+    void sendsTheReasoningEffortOnlyWhenConfigured() {
+        setUp("low");
+        server.expect(requestTo(ENDPOINT)).andExpect(jsonPath("$.reasoning_effort").value("low"))
+            .andRespond(withSuccess(TEXT_REPLY, MediaType.APPLICATION_JSON));
+        chat();
+        server.verify();
+
+        setUp(" ");
+        server.expect(requestTo(ENDPOINT)).andExpect(jsonPath("$.reasoning_effort").doesNotExist())
+            .andRespond(withSuccess(TEXT_REPLY, MediaType.APPLICATION_JSON));
+        chat();
+        server.verify();
     }
 
     @Test

@@ -61,8 +61,9 @@ class ChatApiEndToEndTest {
     }
 
     /**
-     * Call 1: get_today_plan. Call 2: propose_changes on the first GOAL block (postpone if the user said
-     * "postpone", else cancel). Call 3: a text answer.
+     * Works from the "Current data" the app loads into every turn (today's plan and the week so far), like the real
+     * model should. Call 1: propose_priorities for a review, else propose_changes on the first GOAL block (postpone
+     * if the user said "postpone", else cancel). Call 2: a text answer.
      */
     @TestConfiguration
     static class ScriptedModel {
@@ -73,11 +74,14 @@ class ChatApiEndToEndTest {
                 List<AgentMessage> toolResults = messages.stream().filter(m -> m.role() == AgentMessage.Role.TOOL).toList();
                 String userText = messages.stream().filter(m -> m.role() == AgentMessage.Role.USER)
                     .reduce((first, second) -> second).orElseThrow().content();
+                String data = messages.stream()
+                    .filter(m -> m.role() == AgentMessage.Role.SYSTEM && m.content().startsWith("Current data"))
+                    .findFirst().orElseThrow().content();
                 if (userText.contains("review")) {
                     if (toolResults.isEmpty()) {
-                        return new AgentReply(null, List.of(new ToolCall("r1", "get_week_progress", "{}")));
-                    }
-                    if (toolResults.size() == 1) {
+                        if (!data.contains("System design (id career-system-design, priority 3")) {
+                            throw new IllegalStateException("week progress is missing from the current data: " + data);
+                        }
                         return new AgentReply(null, List.of(new ToolCall("r2", "propose_priorities",
                             "{\"rationale\":\"More system design\",\"changes\":[{\"goalId\":\"career-system-design\","
                                 + "\"priority\":5,\"reason\":\"interview soon\"}]}")));
@@ -85,10 +89,8 @@ class ChatApiEndToEndTest {
                     return new AgentReply("I suggest raising System design.", List.of());
                 }
                 if (toolResults.isEmpty()) {
-                    return new AgentReply(null, List.of(new ToolCall("c1", "get_today_plan", "{}")));
-                }
-                if (toolResults.size() == 1) {
-                    List<String> goalIds = JsonPath.read(toolResults.get(0).content(), "$.blocks[?(@.kind == 'GOAL')].id");
+                    String todaysPlan = data.substring(data.indexOf('{'), data.lastIndexOf('}') + 1);
+                    List<String> goalIds = JsonPath.read(todaysPlan, "$.blocks[?(@.kind == 'GOAL')].id");
                     String type = userText.contains("postpone") ? "POSTPONE_BLOCK" : "CANCEL_BLOCK";
                     return new AgentReply(null, List.of(new ToolCall("c2", "propose_changes",
                         "{\"rationale\":\"Taking it off today\",\"events\":[{\"type\":\"" + type + "\",\"blockId\":\""
