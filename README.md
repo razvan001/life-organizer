@@ -1,5 +1,7 @@
 # Life Organizer
 
+[![CI](https://github.com/razvan001/life-organizer/actions/workflows/ci.yml/badge.svg)](https://github.com/razvan001/life-organizer/actions/workflows/ci.yml)
+
 A personal day planner with an AI assistant that is only allowed to *propose*.
 
 Paste your goals and your constraints once. A deterministic scheduling engine builds a time-blocked plan for
