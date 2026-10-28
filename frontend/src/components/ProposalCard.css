@@ -3,8 +3,8 @@
 .proposal {
   margin-top: 0.5rem;
   padding: 0.6rem 0.8rem 0.7rem;
-  background: #fff;
-  border: 1px solid #d9e2ec;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-left: 3px solid #7f77dd;
   border-radius: 0;
 }
@@ -17,18 +17,18 @@
   font-size: 0.8rem;
   font-weight: 600;
   letter-spacing: 0.02em;
-  color: #534ab7;
+  color: var(--color-accent);
 }
 
 .proposal-rationale {
-  color: #243b53;
+  color: var(--color-ink);
 }
 
 .proposal-lines {
   margin: 0.25rem 0 0.4rem;
   padding-left: 1.1rem;
   font-size: 0.85rem;
-  color: #486581;
+  color: var(--color-focus);
 }
 
 .proposal-engine {
@@ -43,19 +43,19 @@
 
 .proposal-actions button {
   margin: 0;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
   padding: 0.35rem 1rem;
 }
 
 .proposal-actions .proposal-apply {
   color: #fff;
-  background: #534ab7;
-  border-color: #534ab7;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
 }
 
 .proposal-actions .proposal-apply:hover:not(:disabled) {
-  background: #3c3489;
-  border-color: #3c3489;
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
 }
 
 .proposal-actions button:disabled {
@@ -67,7 +67,7 @@
   margin-top: 0.4rem;
   padding: 0.1rem 0.7rem;
   font-size: 0.75rem;
-  border-radius: 999px;
+  border-radius: var(--radius-pill);
 }
 
 .status-applied {
@@ -87,15 +87,15 @@
 
 /* weekly-review rows: "Study 3 → 5 · exam Friday" */
 .proposal-priorities .priority-goal {
-  color: #243b53;
+  color: var(--color-ink);
 }
 
 .proposal-priorities .priority-values {
   font-weight: 600;
-  color: #534ab7;
+  color: var(--color-accent);
   font-variant-numeric: tabular-nums;
 }
 
 .proposal-priorities .priority-reason {
-  color: #627d98;
+  color: var(--color-muted);
 }

@@ -1,7 +1,28 @@
 :root {
+  /* design tokens: every CSS file takes its colors, radii and focus ring from here (see frontend/UI.md) */
+  --color-text: #1f2933;
+  --color-ink: #243b53;
+  --color-muted: #627d98;
+  --color-subtle: #829ab1;
+  --color-border: #d9e2ec;
+  --color-input-border: #bcccdc;
+  --color-focus: #486581;
+  --color-surface: #fff;
+  --color-surface-alt: #f0f4f8;
+  --color-bg: #f5f7fa;
+  --color-accent: #534ab7;
+  --color-accent-hover: #3c3489;
+  --color-accent-soft: #eeedfe;
+  --color-accent-border: #cecbf6;
+  --color-danger: #b42318;
+  --focus-ring: 0 0 0 3px rgba(72, 101, 129, 0.2);
+  --radius-card: 12px;
+  --radius-input: 8px;
+  --radius-pill: 999px;
+
   font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
-  color: #1f2933;
-  background: #f5f7fa;
+  color: var(--color-text);
+  background: var(--color-bg);
   line-height: 1.4;
 }
 
@@ -19,7 +40,7 @@ header {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  border-bottom: 1px solid #d9e2ec;
+  border-bottom: 1px solid var(--color-border);
   margin-bottom: 1rem;
 }
 
@@ -36,7 +57,7 @@ header h1 {
 
 nav a {
   margin-left: 1rem;
-  color: #486581;
+  color: var(--color-focus);
   text-decoration: none;
 }
 
@@ -46,14 +67,27 @@ nav a.active {
   border-bottom: 2px solid #102a43;
 }
 
-button {
+/* Base controls. Written inside :where() so they have no specificity: any class rule (.sticky-card,
+   .chat-send, .toast button, .search-field input, ...) wins without !important. */
+:where(button) {
   font: inherit;
-  padding: 0.3rem 0.8rem;
+  color: inherit;
+  padding: 0.35rem 1rem;
   margin-right: 0.4rem;
-  border: 1px solid #9fb3c8;
-  border-radius: 4px;
-  background: #fff;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface);
   cursor: pointer;
+}
+
+:where(button:hover:not(:disabled)) {
+  background: var(--color-surface-alt);
+}
+
+:where(button:focus-visible) {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: var(--focus-ring);
 }
 
 button:disabled {
@@ -61,8 +95,56 @@ button:disabled {
   cursor: default;
 }
 
+.btn-primary {
+  color: #fff;
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: var(--color-accent-hover);
+  border-color: var(--color-accent-hover);
+}
+
+.btn-danger {
+  color: var(--color-danger);
+  border-color: var(--color-danger);
+}
+
+.btn-small {
+  padding: 0.15rem 0.7rem;
+  font-size: 0.85rem;
+}
+
+:where(input:not([type='checkbox'], [type='radio']), select, textarea) {
+  font: inherit;
+  color: inherit;
+  padding: 0.4rem 0.7rem;
+  border: 1px solid var(--color-input-border);
+  border-radius: var(--radius-input);
+  background: var(--color-surface);
+}
+
+:where(input:not([type='checkbox'], [type='radio']), select, textarea):focus {
+  outline: none;
+  border-color: var(--color-focus);
+  box-shadow: var(--focus-ring);
+}
+
+:where(input, select, textarea):disabled {
+  background: var(--color-surface-alt);
+}
+
+:where(input, select, textarea)[aria-invalid='true'] {
+  border-color: var(--color-danger);
+}
+
+input[type='checkbox'] {
+  accent-color: var(--color-accent);
+}
+
 .muted {
-  color: #627d98;
+  color: var(--color-muted);
   font-size: 0.9rem;
 }
 
@@ -84,10 +166,34 @@ textarea {
   font-size: 0.9rem;
 }
 
+/* A white panel for one section of a page, the same look as the Assistant panel. */
+.card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-card);
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.card > :is(h3, h4):first-child {
+  margin-top: 0;
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.card-header :is(h3, h4) {
+  margin: 0;
+}
+
 .warnings {
   background: #fff8e1;
   border: 1px solid #f0d78c;
-  border-radius: 4px;
+  border-radius: var(--radius-input);
   padding: 0.5rem 1rem;
 }
 
@@ -117,8 +223,8 @@ textarea {
 }
 
 .block {
-  background: #fff;
-  border: 1px solid #d9e2ec;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-left: 4px solid #9fb3c8;
   border-radius: 4px;
   padding: 0.5rem 0.75rem;
@@ -136,7 +242,7 @@ textarea {
 .block-free {
   background: transparent;
   border-style: dashed;
-  color: #627d98;
+  color: var(--color-muted);
 }
 
 .block.status-done,
@@ -158,7 +264,7 @@ textarea {
 
 .block-time {
   font-variant-numeric: tabular-nums;
-  color: #486581;
+  color: var(--color-focus);
 }
 
 .block-title {
@@ -176,7 +282,7 @@ textarea {
 .block-reason {
   margin: 0.25rem 0 0;
   font-style: italic;
-  color: #627d98;
+  color: var(--color-muted);
 }
 
 .block-flag {
@@ -213,7 +319,7 @@ textarea {
   margin: 0;
   color: #fff;
   background: transparent;
-  border-color: #486581;
+  border-color: var(--color-focus);
 }
 
 .toast-error {
