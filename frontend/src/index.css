@@ -132,7 +132,9 @@ button:disabled {
 }
 
 :where(input, select, textarea):disabled {
+  color: var(--color-subtle);
   background: var(--color-surface-alt);
+  cursor: default;
 }
 
 :where(input, select, textarea)[aria-invalid='true'] {
@@ -208,6 +210,7 @@ textarea {
 
 .goal-list li {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
   margin-bottom: 0.3rem;
