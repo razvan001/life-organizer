@@ -1,4 +1,4 @@
-import type { CategoryDto, ConstraintDto, GoalDto, SetupPayload } from '../api/types'
+import type { CategoryDto, ConstraintDto, ConstraintType, GoalDto, SetupPayload } from '../api/types'
 import { categoryIdFor, goalIdFor } from './slug'
 
 // Every change to a saved setup on the Setup page goes through these functions. They never change the draft they
@@ -114,4 +114,64 @@ export function removeGoal(draft: DraftSetup, goalId: string): DraftSetup {
 
 function pointsToGoal(constraint: ConstraintDto, goalId: string): boolean {
   return constraint.type === 'FREQUENCY_QUOTA' && constraint.goalId === goalId
+}
+
+/**
+ * A goal has at most one times-per-week quota, a category at most one hours-per-week and one evenings-per-week
+ * quota: the planner counts each quota on its own, so a second one would plan the target twice as often.
+ */
+export function hasQuota(draft: DraftSetup, type: ConstraintType, targetId: string): boolean {
+  if (type === 'FIXED_BLOCK') return false
+  return draft.constraints.some(
+    ({ value }) => value.type === type && (type === 'FREQUENCY_QUOTA' ? value.goalId : value.categoryId) === targetId,
+  )
+}
+
+export function addConstraint(draft: DraftSetup, value: ConstraintDto): DraftSetup {
+  const key = Math.max(-1, ...draft.constraints.map((constraint) => constraint.key)) + 1
+  return { ...draft, constraints: [...draft.constraints, { key, isNew: true, value }] }
+}
+
+export function updateConstraint(draft: DraftSetup, key: number, value: ConstraintDto): DraftSetup {
+  return {
+    ...draft,
+    constraints: draft.constraints.map((constraint) => (constraint.key === key ? { ...constraint, value } : constraint)),
+  }
+}
+
+export function removeConstraint(draft: DraftSetup, key: number): DraftSetup {
+  return { ...draft, constraints: draft.constraints.filter((constraint) => constraint.key !== key) }
+}
+
+const TIME = /^\d{2}:\d{2}$/
+
+// An emptied number input arrives as NaN, which fails here like any other bad count.
+function isCount(value: number | null): boolean {
+  return value !== null && Number.isInteger(value) && value >= 1
+}
+
+/** The first thing wrong with a constraint, as the message shown next to it, or null. Mirrors the backend's checks. */
+export function constraintProblem(constraint: ConstraintDto): string | null {
+  const label = constraint.label.trim()
+  if (label === '') return 'Enter a label.'
+  if (label.length > MAX_TEXT_LENGTH) return 'A label can have at most 255 characters.'
+  switch (constraint.type) {
+    case 'FIXED_BLOCK':
+      if (!TIME.test(constraint.start ?? '')) return 'Enter a start time.'
+      if (!TIME.test(constraint.end ?? '')) return 'Enter an end time.'
+      if (!constraint.days || constraint.days.length === 0) return 'Pick at least one day.'
+      return null
+    case 'FREQUENCY_QUOTA':
+      if (!isCount(constraint.timesPerWeek)) return 'Times per week must be a whole number of at least 1.'
+      if (!isCount(constraint.sessionMinutes)) return 'Minutes per session must be a whole number of at least 1.'
+      return null
+    case 'DURATION_QUOTA':
+      return isCount(constraint.minutesPerWeek) ? null : 'Hours per week must be more than 0.'
+    case 'EVENING_QUOTA':
+      return isCount(constraint.eveningsPerWeek) ? null : 'Evenings per week must be a whole number of at least 1.'
+  }
+}
+
+export function hasProblems(draft: DraftSetup): boolean {
+  return draft.constraints.some((constraint) => constraintProblem(constraint.value) !== null)
 }

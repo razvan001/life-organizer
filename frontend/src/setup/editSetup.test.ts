@@ -2,6 +2,12 @@ import { describe, expect, it } from 'vitest'
 import type { ConstraintDto } from '../api/types'
 import { PARSED } from '../test/fixtures'
 import {
+  addConstraint,
+  constraintProblem,
+  hasProblems,
+  hasQuota,
+  removeConstraint,
+  updateConstraint,
   addGoal,
   constraintsRemovedWith,
   type DraftSetup,
@@ -146,5 +152,70 @@ describe('editSetup: payload', () => {
 
     expect(isChanged(d, SAVED)).toBe(false)
     expect(isChanged(updateGoal(d, 'health-gym', { priority: 5 }), SAVED)).toBe(true)
+  })
+})
+
+describe('editSetup: constraints', () => {
+  const d = toDraft(SAVED)
+
+  it('knows which targets already have a quota of a type', () => {
+    expect(hasQuota(d, 'FREQUENCY_QUOTA', 'health-gym')).toBe(true)
+    expect(hasQuota(d, 'FREQUENCY_QUOTA', 'career-claude-certification')).toBe(false)
+    expect(hasQuota(d, 'DURATION_QUOTA', 'career')).toBe(false)
+    expect(hasQuota(d, 'FIXED_BLOCK', 'Work')).toBe(false)
+  })
+
+  it('adds a constraint with a new key, marked as new', () => {
+    const commute = { ...WORK, label: 'Commute', start: '07:30', end: '08:15' }
+
+    const next = addConstraint(d, commute)
+
+    expect(next.constraints[2]).toEqual({ key: 2, isNew: true, value: commute })
+  })
+
+  it('changes and removes only the constraint with that key', () => {
+    const changed = updateConstraint(d, 1, { ...GYM_QUOTA, timesPerWeek: 3 })
+
+    expect(changed.constraints[1].value.timesPerWeek).toBe(3)
+    expect(changed.constraints[0].value).toEqual(WORK)
+    expect(removeConstraint(d, 0).constraints.map((constraint) => constraint.value)).toEqual([GYM_QUOTA])
+  })
+
+  it('accepts every saved constraint', () => {
+    for (const constraint of SAVED.constraints) expect(constraintProblem(constraint)).toBeNull()
+    expect(hasProblems(d)).toBe(false)
+  })
+
+  it('reports a bad label', () => {
+    expect(constraintProblem({ ...WORK, label: ' ' })).toBe('Enter a label.')
+    expect(constraintProblem({ ...WORK, label: 'x'.repeat(256) })).toBe('A label can have at most 255 characters.')
+  })
+
+  it('reports bad times and days of a fixed block', () => {
+    expect(constraintProblem({ ...WORK, start: '' })).toBe('Enter a start time.')
+    expect(constraintProblem({ ...WORK, start: '8:3' })).toBe('Enter a start time.')
+    expect(constraintProblem({ ...WORK, end: '' })).toBe('Enter an end time.')
+    expect(constraintProblem({ ...WORK, days: [] })).toBe('Pick at least one day.')
+  })
+
+  it('reports counts that are not whole numbers of at least 1', () => {
+    for (const timesPerWeek of [0, Number.NaN, 1.5]) {
+      expect(constraintProblem({ ...GYM_QUOTA, timesPerWeek })).toBe(
+        'Times per week must be a whole number of at least 1.',
+      )
+    }
+    expect(constraintProblem({ ...GYM_QUOTA, sessionMinutes: 0 })).toBe(
+      'Minutes per session must be a whole number of at least 1.',
+    )
+    const evenings: ConstraintDto = { ...GYM_QUOTA, type: 'EVENING_QUOTA', goalId: null, timesPerWeek: null, sessionMinutes: null, categoryId: 'health', eveningsPerWeek: 0 }
+    expect(constraintProblem(evenings)).toBe('Evenings per week must be a whole number of at least 1.')
+  })
+
+  it('reports hours per week of 0 or empty', () => {
+    const hours: ConstraintDto = { ...GYM_QUOTA, type: 'DURATION_QUOTA', goalId: null, timesPerWeek: null, sessionMinutes: null, categoryId: 'health', minutesPerWeek: 0 }
+
+    expect(constraintProblem(hours)).toBe('Hours per week must be more than 0.')
+    expect(constraintProblem({ ...hours, minutesPerWeek: Number.NaN })).toBe('Hours per week must be more than 0.')
+    expect(hasProblems(addConstraint(d, hours))).toBe(true)
   })
 })
