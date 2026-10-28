@@ -1,0 +1,32 @@
+.setup-editor .goal-name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.4rem;
+}
+
+.setup-editor .removes-hint {
+  flex-basis: 100%;
+  font-size: 0.8rem;
+}
+
+.new-tag {
+  background: #e3f2e7;
+  border-radius: 3px;
+  color: #1e6b34;
+  font-size: 0.75rem;
+  padding: 0 0.3rem;
+}
+
+.add-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin: 0.5rem 0 1rem;
+}
+
+.add-form [role='alert'] {
+  flex-basis: 100%;
+  margin: 0;
+}
