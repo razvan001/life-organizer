@@ -375,6 +375,37 @@ describe('SetupPage', () => {
       expect(sent.goals[1]).toEqual(SAVED.goals[1])
     })
 
+    it('keeps adding goals after Discard changes removed the chosen category', async () => {
+      const user = userEvent.setup()
+      mockApi({ 'GET /api/setup': () => jsonResponse(SAVED), 'GET /api/config': () => jsonResponse(AI_OFF) })
+      await renderSetup()
+      await user.type(screen.getByLabelText('New goal name'), 'Guitar')
+      await user.selectOptions(screen.getByLabelText('Category for the new goal'), 'New category…')
+      await user.type(screen.getByLabelText('New category name'), 'Music')
+      await user.click(screen.getByRole('button', { name: 'Add goal' }))
+      await user.selectOptions(screen.getByLabelText('Category for the new goal'), 'Music')
+
+      await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+      await user.type(screen.getByLabelText('New goal name'), 'Azure AI')
+      await user.click(screen.getByRole('button', { name: 'Add goal' }))
+
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      const career = screen.getByRole('heading', { name: 'Career' }).parentElement!
+      expect(within(career).getByText('Azure AI')).toBeInTheDocument()
+    })
+
+    it('cannot save a setup without goals', async () => {
+      const user = userEvent.setup()
+      mockApi({ 'GET /api/setup': () => jsonResponse(SAVED), 'GET /api/config': () => jsonResponse(AI_OFF) })
+      await renderSetup()
+
+      await user.click(screen.getByRole('button', { name: 'Remove Claude certification' }))
+      await user.click(screen.getByRole('button', { name: 'Remove Gym' }))
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+      expect(screen.getByText('Keep at least one goal to save.')).toBeInTheDocument()
+    })
+
     it('shows the error when adding from text fails', async () => {
       const user = userEvent.setup()
       mockApi({

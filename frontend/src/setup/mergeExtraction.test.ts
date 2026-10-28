@@ -147,3 +147,16 @@ describe('mergeExtraction', () => {
     expect(result.warnings).toHaveLength(1)
   })
 })
+
+describe('mergeExtraction: review fixes', () => {
+  it('skips a goal whose id would be longer than 255 characters', () => {
+    const long = 'x'.repeat(250)
+    const result = mergeExtraction(
+      toDraft(SAVED),
+      extracted({ goals: [goal({ id: 'g', categoryId: 'health', name: long })] }),
+    )
+
+    expect(result.draft.goals).toHaveLength(2)
+    expect(result.warnings).toEqual([`Skipped goal "${long}": its name is too long.`])
+  })
+})

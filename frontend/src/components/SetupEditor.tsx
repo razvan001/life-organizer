@@ -106,7 +106,12 @@ const NEW_CATEGORY = '__new__'
 
 function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'newGoalIds' | 'warnings'>) {
   const [name, setName] = useState('')
-  const [categoryId, setCategoryId] = useState(draft.categories[0]?.id ?? NEW_CATEGORY)
+  const [chosenCategoryId, setCategoryId] = useState(draft.categories[0]?.id ?? NEW_CATEGORY)
+  // the chosen category can disappear (Discard changes): fall back to the first one, as the select shows
+  const categoryId =
+    chosenCategoryId === NEW_CATEGORY || draft.categories.some((category) => category.id === chosenCategoryId)
+      ? chosenCategoryId
+      : (draft.categories[0]?.id ?? NEW_CATEGORY)
   const [newCategoryName, setNewCategoryName] = useState('')
   const [error, setError] = useState<string | null>(null)
 

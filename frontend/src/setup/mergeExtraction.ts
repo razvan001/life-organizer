@@ -1,6 +1,6 @@
 import type { CategoryDto, ConstraintDto, GoalDto, SetupParseResponse } from '../api/types'
 import { describeConstraint } from './describeConstraint'
-import { addConstraint, type DraftSetup, hasQuota } from './editSetup'
+import { addConstraint, type DraftSetup, hasQuota, MAX_TEXT_LENGTH } from './editSetup'
 import { categoryIdFor, goalIdFor } from './slug'
 
 export interface MergeResult {
@@ -57,6 +57,10 @@ export function mergeExtraction(draft: DraftSetup, extracted: SetupParseResponse
     }
     if (!categoryExists(categoryId)) {
       warnings.push(`Skipped goal "${extractedGoal.name}": its category is not in the setup.`)
+      continue
+    }
+    if (id.length > MAX_TEXT_LENGTH) {
+      warnings.push(`Skipped goal "${extractedGoal.name}": its name is too long.`)
       continue
     }
     useCategory(categoryId)

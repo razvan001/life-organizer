@@ -21,8 +21,8 @@ export type CategoryChoice = { existingId: string } | { newName: string }
 
 export type EditResult = { ok: true; draft: DraftSetup } | { ok: false; error: string }
 
-/** The backend's column limit. */
-const MAX_TEXT_LENGTH = 255
+/** The backend's column limit, for names, labels and ids. */
+export const MAX_TEXT_LENGTH = 255
 
 export function toDraft(saved: SetupPayload): DraftSetup {
   return {
@@ -43,8 +43,10 @@ export function toPayload(draft: DraftSetup): SetupPayload {
   return { categories, goals: draft.goals, constraints }
 }
 
+// Both sides go through toPayload: a saved category without goals is dropped on Save either way, so it is not a
+// change the user made.
 export function isChanged(draft: DraftSetup, saved: SetupPayload): boolean {
-  return JSON.stringify(toPayload(draft)) !== JSON.stringify(saved)
+  return JSON.stringify(toPayload(draft)) !== JSON.stringify(toPayload(toDraft(saved)))
 }
 
 const refuse = (error: string): EditResult => ({ ok: false, error })
@@ -70,6 +72,7 @@ export function addGoal(draft: DraftSetup, name: string, category: CategoryChoic
   }
 
   const id = goalIdFor(target.id, goalName)
+  if (id.length > MAX_TEXT_LENGTH) return refuse('This goal name is too long for its category. Use a shorter one.')
   // goal ids are global keys, so the check covers every category
   const clash = draft.goals.find((goal) => goal.id === id)
   if (clash) {
@@ -152,9 +155,9 @@ function isCount(value: number | null): boolean {
 
 /** The first thing wrong with a constraint, as the message shown next to it, or null. Mirrors the backend's checks. */
 export function constraintProblem(constraint: ConstraintDto): string | null {
-  const label = constraint.label.trim()
-  if (label === '') return 'Enter a label.'
-  if (label.length > MAX_TEXT_LENGTH) return 'A label can have at most 255 characters.'
+  if (constraint.label.trim() === '') return 'Enter a label.'
+  // the label is sent as typed, spaces included
+  if (constraint.label.length > MAX_TEXT_LENGTH) return 'A label can have at most 255 characters.'
   switch (constraint.type) {
     case 'FIXED_BLOCK':
       if (!TIME.test(constraint.start ?? '')) return 'Enter a start time.'

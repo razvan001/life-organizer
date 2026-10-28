@@ -265,7 +265,9 @@ function SavedSetup({ saved, aiEnabled }: { saved: SetupPayload; aiEnabled: bool
       {error && <p role="alert">{error}</p>}
 
       <p className="muted">{PLANNED_DAYS_NOTE}</p>
-      <button type="button" disabled={busy || hasProblems(draft)} onClick={save}>
+      {/* without goals the next visit would open the first-visit flow and hide the saved constraints */}
+      {draft.goals.length === 0 && <p className="muted">Keep at least one goal to save.</p>}
+      <button type="button" disabled={busy || hasProblems(draft) || draft.goals.length === 0} onClick={save}>
         Save
       </button>
       {isChanged(draft, saved) && (

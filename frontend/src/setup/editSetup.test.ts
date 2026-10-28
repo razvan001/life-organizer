@@ -219,3 +219,23 @@ describe('editSetup: constraints', () => {
     expect(hasProblems(addConstraint(d, hours))).toBe(true)
   })
 })
+
+describe('editSetup: review fixes', () => {
+  it('does not count a saved category without goals as a change', () => {
+    const saved = { ...SAVED, categories: [...SAVED.categories, { id: 'music', name: 'Music' }] }
+
+    expect(isChanged(toDraft(saved), saved)).toBe(false)
+  })
+
+  it('refuses a goal whose id would be longer than 255 characters', () => {
+    expect(errorOf(addGoal(toDraft(SAVED), 'x'.repeat(250), { existingId: 'health' }))).toBe(
+      'This goal name is too long for its category. Use a shorter one.',
+    )
+  })
+
+  it('checks the length of the label as it is sent', () => {
+    expect(constraintProblem({ ...WORK, label: 'x'.repeat(250) + ' '.repeat(10) })).toBe(
+      'A label can have at most 255 characters.',
+    )
+  })
+})
