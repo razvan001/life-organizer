@@ -41,65 +41,69 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings
         </div>
       )}
 
-      <h4>Goals</h4>
-      <p className="muted">Priority: 1 = least important, 5 = most important. A deadline gives a goal more time.</p>
-      {draft.categories.map((category) => {
-        const goals = draft.goals.filter((goal) => goal.categoryId === category.id)
-        return (
-          <div key={category.id}>
-            <h5>{category.name}</h5>
-            {goals.length === 0 && <p className="muted">no goals</p>}
-            <ul className="goal-list">
-              {goals.map((goal) => {
-                const goesWith = constraintsRemovedWith(draft, goal.id)
-                return (
-                  <li key={goal.id}>
-                    <span className="goal-name">
-                      {goal.name}
-                      {newGoalIds.includes(goal.id) && <span className="new-tag">new</span>}
-                      {goesWith.length > 0 && (
-                        <span className="muted removes-hint">
-                          also removes: {goesWith.map(describeConstraint).join('; ')}
-                        </span>
-                      )}
-                    </span>
-                    <Select
-                      aria-label={`Priority for ${goal.name}`}
-                      value={goal.priority}
-                      disabled={disabled}
-                      onChange={(event) => onChange(updateGoal(draft, goal.id, { priority: Number(event.target.value) }))}
-                    >
-                      {[1, 2, 3, 4, 5].map((priority) => (
-                        <option key={priority} value={priority}>
-                          {priority}
-                        </option>
-                      ))}
-                    </Select>
-                    <DateInput
-                      aria-label={`Deadline for ${goal.name}`}
-                      value={goal.deadline ?? ''}
-                      disabled={disabled}
-                      // an empty date input gives "", but the backend wants null for "no deadline"
-                      onChange={(event) =>
-                        onChange(updateGoal(draft, goal.id, { deadline: event.target.value || null }))
-                      }
-                    />
-                    <button
-                      className="btn-danger btn-small"
-                      type="button"
-                      disabled={disabled}
-                      onClick={() => onChange(removeGoal(draft, goal.id))}
-                    >
-                      Remove {goal.name}
-                    </button>
-                  </li>
-                )
-              })}
-            </ul>
-          </div>
-        )
-      })}
-      <AddGoalForm draft={draft} onChange={onChange} onGoalAdded={onGoalAdded} disabled={disabled} />
+      <div className="card">
+        <h4>Goals</h4>
+        <p className="muted">Priority: 1 = least important, 5 = most important. A deadline gives a goal more time.</p>
+        {draft.categories.map((category) => {
+          const goals = draft.goals.filter((goal) => goal.categoryId === category.id)
+          return (
+            <div key={category.id}>
+              <h5>{category.name}</h5>
+              {goals.length === 0 && <p className="muted">no goals</p>}
+              <ul className="goal-list">
+                {goals.map((goal) => {
+                  const goesWith = constraintsRemovedWith(draft, goal.id)
+                  return (
+                    <li key={goal.id}>
+                      <span className="goal-name">
+                        {goal.name}
+                        {newGoalIds.includes(goal.id) && <span className="new-tag">new</span>}
+                        {goesWith.length > 0 && (
+                          <span className="muted removes-hint">
+                            also removes: {goesWith.map(describeConstraint).join('; ')}
+                          </span>
+                        )}
+                      </span>
+                      <Select
+                        aria-label={`Priority for ${goal.name}`}
+                        value={goal.priority}
+                        disabled={disabled}
+                        onChange={(event) =>
+                          onChange(updateGoal(draft, goal.id, { priority: Number(event.target.value) }))
+                        }
+                      >
+                        {[1, 2, 3, 4, 5].map((priority) => (
+                          <option key={priority} value={priority}>
+                            {priority}
+                          </option>
+                        ))}
+                      </Select>
+                      <DateInput
+                        aria-label={`Deadline for ${goal.name}`}
+                        value={goal.deadline ?? ''}
+                        disabled={disabled}
+                        // an empty date input gives "", but the backend wants null for "no deadline"
+                        onChange={(event) =>
+                          onChange(updateGoal(draft, goal.id, { deadline: event.target.value || null }))
+                        }
+                      />
+                      <button
+                        className="btn-danger btn-small"
+                        type="button"
+                        disabled={disabled}
+                        onClick={() => onChange(removeGoal(draft, goal.id))}
+                      >
+                        Remove {goal.name}
+                      </button>
+                    </li>
+                  )
+                })}
+              </ul>
+            </div>
+          )
+        })}
+        <AddGoalForm draft={draft} onChange={onChange} onGoalAdded={onGoalAdded} disabled={disabled} />
+      </div>
 
       <SetupConstraints draft={draft} onChange={onChange} disabled={disabled} />
     </div>

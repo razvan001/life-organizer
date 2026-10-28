@@ -159,20 +159,22 @@ export function NotesPage() {
 
       {results && results.length === 0 && <p className="muted">Nothing found.</p>}
       {results && results.length > 0 && (
-        <ul className="memory-results" aria-label="Search results">
-          {results.map((result) => (
-            <li key={`${result.sourceType}-${result.sourceId}-${result.snippet}`}>
-              <span className="badge">{result.sourceType === 'NOTE' ? 'Note' : 'Day'}</span>{' '}
-              <strong>{result.title}</strong> <span className="muted">{result.score.toFixed(2)}</span>
-              <p>{result.snippet}</p>
-              {result.sourceType === 'NOTE' && (
-                <button className="btn-small" type="button" disabled={busy} onClick={() => open(result.sourceId)}>
-                  Open
-                </button>
-              )}
-            </li>
-          ))}
-        </ul>
+        <div className="card">
+          <ul className="memory-results" aria-label="Search results">
+            {results.map((result) => (
+              <li key={`${result.sourceType}-${result.sourceId}-${result.snippet}`}>
+                <span className="badge">{result.sourceType === 'NOTE' ? 'Note' : 'Day'}</span>{' '}
+                <strong>{result.title}</strong> <span className="muted">{result.score.toFixed(2)}</span>
+                <p>{result.snippet}</p>
+                {result.sourceType === 'NOTE' && (
+                  <button className="btn-small" type="button" disabled={busy} onClick={() => open(result.sourceId)}>
+                    Open
+                  </button>
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       <div className="notes-header">
@@ -206,55 +208,57 @@ export function NotesPage() {
         </ul>
       )}
 
-      <h3>{draft.id === null ? 'New note' : 'Edit note'}</h3>
-      <div className="field">
-        <label htmlFor="note-title">Title</label>
-        <input
-          id="note-title"
-          type="text"
-          maxLength={TITLE_MAX}
-          value={draft.title}
-          disabled={busy}
-          aria-invalid={touched.title && titleMissing}
-          aria-describedby="note-title-help"
-          onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-          onBlur={() => setTouched({ ...touched, title: true })}
-        />
-        <div id="note-title-help" className="field-help">
-          {touched.title && titleMissing && <span className="field-error">Title is required.</span>}
-          <span className="muted counter">
-            {draft.title.length} / {TITLE_MAX}
-          </span>
+      <div className="card">
+        <h3>{draft.id === null ? 'New note' : 'Edit note'}</h3>
+        <div className="field">
+          <label htmlFor="note-title">Title</label>
+          <input
+            id="note-title"
+            type="text"
+            maxLength={TITLE_MAX}
+            value={draft.title}
+            disabled={busy}
+            aria-invalid={touched.title && titleMissing}
+            aria-describedby="note-title-help"
+            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+            onBlur={() => setTouched({ ...touched, title: true })}
+          />
+          <div id="note-title-help" className="field-help">
+            {touched.title && titleMissing && <span className="field-error">Title is required.</span>}
+            <span className="muted counter">
+              {draft.title.length} / {TITLE_MAX}
+            </span>
+          </div>
         </div>
-      </div>
-      <div className="field">
-        <label htmlFor="note-body">Body</label>
-        <textarea
-          id="note-body"
-          rows={6}
-          maxLength={BODY_MAX}
-          value={draft.body}
-          disabled={busy}
-          aria-invalid={touched.body && bodyMissing}
-          aria-describedby="note-body-help"
-          onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-          onBlur={() => setTouched({ ...touched, body: true })}
-        />
-        <div id="note-body-help" className="field-help">
-          {touched.body && bodyMissing && <span className="field-error">Body is required.</span>}
-          <span className="muted counter">
-            {draft.body.length} / {BODY_MAX}
-          </span>
+        <div className="field">
+          <label htmlFor="note-body">Body</label>
+          <textarea
+            id="note-body"
+            rows={6}
+            maxLength={BODY_MAX}
+            value={draft.body}
+            disabled={busy}
+            aria-invalid={touched.body && bodyMissing}
+            aria-describedby="note-body-help"
+            onChange={(e) => setDraft({ ...draft, body: e.target.value })}
+            onBlur={() => setTouched({ ...touched, body: true })}
+          />
+          <div id="note-body-help" className="field-help">
+            {touched.body && bodyMissing && <span className="field-error">Body is required.</span>}
+            <span className="muted counter">
+              {draft.body.length} / {BODY_MAX}
+            </span>
+          </div>
         </div>
+        <button className="btn-primary" type="button" disabled={busy || titleMissing || bodyMissing} onClick={save}>
+          Save note
+        </button>{' '}
+        {draft.id !== null && (
+          <button className="btn-danger" type="button" disabled={busy} onClick={remove}>
+            Delete note
+          </button>
+        )}
       </div>
-      <button className="btn-primary" type="button" disabled={busy || titleMissing || bodyMissing} onClick={save}>
-        Save note
-      </button>{' '}
-      {draft.id !== null && (
-        <button className="btn-danger" type="button" disabled={busy} onClick={remove}>
-          Delete note
-        </button>
-      )}
       <ChangeToast changes={notice} onDismiss={dismissNotice} />
     </section>
   )

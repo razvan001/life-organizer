@@ -135,29 +135,31 @@ function FirstSetup({ aiEnabled }: { aiEnabled: boolean }) {
 
   return (
     <>
-      <div className="field">
-        <label htmlFor="goals-text">Goals</label>
-        <textarea id="goals-text" rows={16} value={goalsText} onChange={(event) => editGoals(event.target.value)} />
-      </div>
-      <div className="field">
-        <label htmlFor="constraints-text">Constraints (one per line)</label>
-        <textarea
-          id="constraints-text"
-          rows={7}
-          value={constraintsText}
-          onChange={(event) => editConstraints(event.target.value)}
-        />
-      </div>
+      <div className="card">
+        <div className="field">
+          <label htmlFor="goals-text">Goals</label>
+          <textarea id="goals-text" rows={16} value={goalsText} onChange={(event) => editGoals(event.target.value)} />
+        </div>
+        <div className="field">
+          <label htmlFor="constraints-text">Constraints (one per line)</label>
+          <textarea
+            id="constraints-text"
+            rows={7}
+            value={constraintsText}
+            onChange={(event) => editConstraints(event.target.value)}
+          />
+        </div>
 
-      <button className="btn-primary" type="button" disabled={busy || goalsText.trim() === ''} onClick={parse}>
-        Parse
-      </button>{' '}
-      <button type="button" disabled={busy} onClick={useExample}>
-        Use example text
-      </button>
+        <button className="btn-primary" type="button" disabled={busy || goalsText.trim() === ''} onClick={parse}>
+          Parse
+        </button>{' '}
+        <button type="button" disabled={busy} onClick={useExample}>
+          Use example text
+        </button>
+      </div>
 
       {aiEnabled && (
-        <div className="field">
+        <div className="card field">
           <label htmlFor="brain-dump">Or describe your goals and constraints in your own words</label>
           <textarea
             id="brain-dump"
@@ -174,7 +176,7 @@ function FirstSetup({ aiEnabled }: { aiEnabled: boolean }) {
       {error && <p role="alert">{error}</p>}
 
       {preview && (
-        <>
+        <div className="card">
           <h3>{previewTitle}</h3>
           <SetupPreview value={preview} onChange={setPreview} />
           <p className="muted">{PLANNED_DAYS_NOTE}</p>
@@ -189,7 +191,7 @@ function FirstSetup({ aiEnabled }: { aiEnabled: boolean }) {
           >
             Save
           </button>
-        </>
+        </div>
       )}
     </>
   )
@@ -252,7 +254,7 @@ function SavedSetup({ saved, aiEnabled }: { saved: SetupPayload; aiEnabled: bool
       />
 
       {aiEnabled && (
-        <div className="field">
+        <div className="card field">
           <label htmlFor="brain-dump">Describe goals to add in your own words</label>
           <textarea
             id="brain-dump"

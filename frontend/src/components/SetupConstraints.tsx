@@ -51,7 +51,7 @@ export function SetupConstraints({ draft, onChange, disabled }: Props) {
   }
 
   return (
-    <>
+    <div className="card">
       <h4>Constraints</h4>
       <ul className="constraint-list">
         {draft.constraints.map(({ key, isNew, value }) => {
@@ -84,7 +84,7 @@ export function SetupConstraints({ draft, onChange, disabled }: Props) {
         })}
       </ul>
       <AddConstraintForm draft={draft} onChange={onChange} disabled={disabled} />
-    </>
+    </div>
   )
 }
 
