@@ -30,3 +30,37 @@
   flex-basis: 100%;
   margin: 0;
 }
+
+.constraint-list {
+  list-style: none;
+  padding: 0;
+}
+
+.constraint-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.constraint-row [role='alert'],
+.constraint-list [role='alert'] {
+  margin: 0 0 0.5rem;
+  font-size: 0.85rem;
+}
+
+.constraint-type {
+  font-weight: 600;
+  min-width: 9rem;
+}
+
+input.number {
+  width: 4rem;
+}
+
+.days {
+  display: inline-flex;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}

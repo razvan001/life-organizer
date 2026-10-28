@@ -8,6 +8,7 @@ import {
   removeGoal,
   updateGoal,
 } from '../setup/editSetup'
+import { SetupConstraints } from './SetupConstraints'
 import './SetupEditor.css'
 
 interface Props {
@@ -94,6 +95,8 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings
         )
       })}
       <AddGoalForm draft={draft} onChange={onChange} onGoalAdded={onGoalAdded} disabled={disabled} />
+
+      <SetupConstraints draft={draft} onChange={onChange} disabled={disabled} />
     </div>
   )
 }
