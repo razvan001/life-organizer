@@ -62,7 +62,7 @@ class ChatApiEndToEndTest {
 
     /**
      * Works from the "Current data" the app loads into every turn (today's plan and the week so far), like the real
-     * model should. Call 1: propose_priorities for a review, else propose_changes on the first GOAL block (postpone
+     * model should. A review gets a plain summary; otherwise call 1 is propose_changes on the first GOAL block (postpone
      * if the user said "postpone", else cancel). Call 2: a text answer.
      */
     @TestConfiguration
@@ -78,15 +78,10 @@ class ChatApiEndToEndTest {
                     .filter(m -> m.role() == AgentMessage.Role.SYSTEM && m.content().startsWith("Current data"))
                     .findFirst().orElseThrow().content();
                 if (userText.contains("review")) {
-                    if (toolResults.isEmpty()) {
-                        if (!data.contains("System design (id career-system-design, priority 3")) {
-                            throw new IllegalStateException("week progress is missing from the current data: " + data);
-                        }
-                        return new AgentReply(null, List.of(new ToolCall("r2", "propose_priorities",
-                            "{\"rationale\":\"More system design\",\"changes\":[{\"goalId\":\"career-system-design\","
-                                + "\"priority\":5,\"reason\":\"interview soon\"}]}")));
+                    if (!data.contains("System design (id career-system-design, priority 3")) {
+                        throw new IllegalStateException("week progress is missing from the current data: " + data);
                     }
-                    return new AgentReply("I suggest raising System design.", List.of());
+                    return new AgentReply("Gym has been postponed twice; System design is on track.", List.of());
                 }
                 if (toolResults.isEmpty()) {
                     String todaysPlan = data.substring(data.indexOf('{'), data.lastIndexOf('}') + 1);
@@ -168,38 +163,13 @@ class ChatApiEndToEndTest {
     }
 
     @Test
-    void aPriorityProposalUpdatesTheGoalAndReplansUntouchedDays() throws Exception {
+    void aWeeklyReviewIsASummaryWithoutAProposal() throws Exception {
         saveExampleSetup();
-        mvc.perform(get("/api/plan/today")).andExpect(status().isOk());
-        planService.getOrGenerate(java.time.LocalDate.of(2026, 9, 16)); // Wednesday, stored and untouched
 
         String reply = send("please review my week");
-        Integer id = JsonPath.read(reply, "$.id");
-        org.assertj.core.api.Assertions.assertThat((String) JsonPath.read(reply, "$.proposal.kind")).isEqualTo("PRIORITIES");
 
-        mvc.perform(post("/api/assistant/chat/messages/" + id + "/apply"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.changes[0]").value("System design: priority 3 -> 5"))
-            .andExpect(jsonPath("$.changes[1]").value("Re-planned Wed 2026-09-16"))
-            .andExpect(jsonPath("$.date").value("2026-09-14"));
-
-        org.assertj.core.api.Assertions.assertThat(
-            jdbc.queryForObject("select priority from goal where id = 'career-system-design'", Integer.class)).isEqualTo(5);
-        org.assertj.core.api.Assertions.assertThat(
-            jdbc.queryForObject("select count(*) from block where block_date = '2026-09-15'", Integer.class)).isZero();
-        mvc.perform(get("/api/assistant/chat")).andExpect(jsonPath("$[1].proposal.status").value("APPLIED"));
-    }
-
-    @Test
-    void aStalePriorityProposalExpires() throws Exception {
-        saveExampleSetup();
-        Integer id = JsonPath.read(send("please review my week"), "$.id");
-        jdbc.update("update goal set priority = 4 where id = 'career-system-design'");
-
-        mvc.perform(post("/api/assistant/chat/messages/" + id + "/apply"))
-            .andExpect(status().isConflict())
-            .andExpect(jsonPath("$.detail").value("Your goals changed since this proposal"));
-
-        mvc.perform(get("/api/assistant/chat")).andExpect(jsonPath("$[1].proposal.status").value("EXPIRED"));
+        org.assertj.core.api.Assertions.assertThat((String) JsonPath.read(reply, "$.text"))
+            .isEqualTo("Gym has been postponed twice; System design is on track.");
+        org.assertj.core.api.Assertions.assertThat((Object) JsonPath.read(reply, "$.proposal")).isNull();
     }
 }

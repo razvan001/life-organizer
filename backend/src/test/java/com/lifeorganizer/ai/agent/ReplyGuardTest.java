@@ -15,7 +15,7 @@ class ReplyGuardTest {
     })
     void toolArgumentsWrittenAsTextAreAProblemWithoutAProposal(String reply) {
         assertThat(ReplyGuard.problem(reply, false)).hasValueSatisfying(correction ->
-            assertThat(correction).contains("tool arguments as text").contains("propose_changes or propose_priorities"));
+            assertThat(correction).contains("tool arguments as text").contains("propose_changes"));
     }
 
     @ParameterizedTest
@@ -67,6 +67,9 @@ class ReplyGuardTest {
         "You applied for the course last week according to your notes.",
         "If you moved Padel to 20:00 you would still have time for dinner.",
         "Use {curly} braces however you like.",
+        // a weekly summary reports what already happened to the plan
+        "Gym has been postponed twice and Chess was cancelled on Tuesday.",
+        "Two Study sessions have been moved to the evening this week.",
     })
     void ordinaryAnswersAreFine(String reply) {
         assertThat(ReplyGuard.problem(reply, false)).isEmpty();

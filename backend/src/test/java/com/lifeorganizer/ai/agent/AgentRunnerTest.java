@@ -118,8 +118,8 @@ class AgentRunnerTest {
             .contains("Write plain text only")
             .contains("never \"I've added\"")
             .contains("Current data")
-            .contains("propose_priorities")
-            .contains("never both")
+            .doesNotContain("propose_priorities")
+            .contains("summarize the week")
             .contains("Never write JSON")
             .contains("does not apply anything");
         assertThat(sent).extracting(AgentMessage::content).endsWith("earlier", "ok", "hi");

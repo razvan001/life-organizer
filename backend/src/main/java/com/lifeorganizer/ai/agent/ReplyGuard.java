@@ -19,10 +19,16 @@ final class ReplyGuard {
     private static final String DONE_VERBS = "added|cancell?ed|moved|changed|applied|postponed|updated|raised|lowered"
         + "|removed|rescheduled|saved";
 
+    /**
+     * Passive claims only for what the assistant itself could have done. A weekly summary reports what already
+     * happened to the plan ("Gym has been postponed twice"), so the plan-event verbs are left out here.
+     */
+    private static final String PASSIVE_DONE_VERBS = "applied|saved|updated|changed";
+
     /** "I've added ...", "... have been applied", "it's done". */
     private static final Pattern DONE_CLAIM = Pattern.compile(
         "\\bI(['\u2019]ve| have)\\s+(just\\s+|already\\s+|now\\s+)?(" + DONE_VERBS + ")\\b"
-            + "|\\b(has|have) been (" + DONE_VERBS + ")\\b"
+            + "|\\b(has|have) been (" + PASSIVE_DONE_VERBS + ")\\b"
             + "|\\bit(['\u2019]s| is) done\\b",
         Pattern.CASE_INSENSITIVE);
 
@@ -53,12 +59,12 @@ final class ReplyGuard {
         }
         if (json) {
             return Optional.of("You wrote tool arguments as text. The user cannot use that and has no Apply button. "
-                + "Call propose_changes or propose_priorities as a tool now with those arguments, then reply in plain "
+                + "Call propose_changes as a tool now with those arguments, then reply in plain "
                 + "sentences without JSON.");
         }
         if (doneClaim || APPLY_MENTION.matcher(reply).find()) {
             return Optional.of("No proposal was recorded in this turn, so nothing changed and the user has no Apply "
-                + "button. If a change is wanted, call propose_changes or propose_priorities now. Otherwise reply "
+                + "button. If a change is wanted, call propose_changes now. Otherwise reply "
                 + "without claiming a change and without mentioning Apply.");
         }
         return Optional.empty();

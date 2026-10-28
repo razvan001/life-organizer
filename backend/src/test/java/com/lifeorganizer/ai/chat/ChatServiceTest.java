@@ -6,8 +6,8 @@ import com.lifeorganizer.ai.agent.AgentTurnResult;
 import com.lifeorganizer.ai.agent.PriorityChange;
 import com.lifeorganizer.ai.agent.Proposal;
 import com.lifeorganizer.ai.chat.dto.ChatMessageDto;
+import com.lifeorganizer.ai.chat.dto.ProposalDto;
 import com.lifeorganizer.domain.DayPlan;
-import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.persistence.SetupStore;
 import com.lifeorganizer.support.ExampleSetup;
 import com.lifeorganizer.engine.CancelBlock;
@@ -39,7 +39,6 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
-import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -151,40 +150,34 @@ class ChatServiceTest {
         assertThatThrownBy(() -> chat.apply(id)).isInstanceOf(ProposalNotAvailableException.class);
     }
 
-    private static final Proposal PRIORITIES = Proposal.priorities("Exam week",
-        List.of(new PriorityChange("career-system-design", "System design", 3, 5, "exam Friday")),
-        List.of("Would re-plan Thu 2026-10-01"));
+    // Weekly reviews no longer propose priorities, but threads saved before that still hold such proposals.
+    private static final Proposal PRIORITIES = new Proposal(Proposal.Kind.PRIORITIES, "Exam week", List.of(),
+        List.of("Would re-plan Thu 2026-10-01"), null,
+        List.of(new PriorityChange("career-system-design", "System design", 3, 5, "exam Friday")));
 
     @Test
-    void applyingPrioritiesSavesThemAndReplansUntouchedDays() {
-        setupStore.replace(ExampleSetup.tree(), ExampleSetup.constraints());
+    void applyingAPriorityProposalIsNotAvailable() {
+        setupStore.replace(ExampleSetup.tree(), ExampleSetup.constraints()); // the proposal is not stale
         agentAnswers("I'd raise System design.", PRIORITIES);
         long id = chat.send("review my week").id();
-        when(planService.replanUntouchedDays(TODAY)).thenReturn(List.of(TODAY.plusDays(1), TODAY.plusDays(2)));
-        when(planService.getOrGenerate(TODAY)).thenReturn(new DayPlan(TODAY, List.of(), List.of()));
 
-        ApplyEventsResponse applied = chat.apply(id);
+        assertThatThrownBy(() -> chat.apply(id)).isInstanceOf(ProposalNotAvailableException.class);
 
-        assertThat(applied.changes()).containsExactly("System design: priority 3 -> 5",
-            "Re-planned Thu 2026-10-01, Fri 2026-10-02");
-        assertThat(setupStore.loadTree().goals()).filteredOn(g -> g.id().equals("career-system-design"))
-            .extracting(Goal::priority).containsExactly(5);
-        assertThat(chat.thread(TODAY).get(1).proposal().status()).isEqualTo("APPLIED");
-        assertThat(chat.thread(TODAY).get(1).proposal().kind()).isEqualTo("PRIORITIES");
         verify(planService, never()).applyEvents(anyList(), any());
+        verify(planService, never()).getOrGenerate(any());
     }
 
     @Test
-    void aPriorityProposalWhoseGoalsChangedIsRefused() {
-        setupStore.replace(ExampleSetup.tree(), ExampleSetup.constraints());
-        setupStore.updatePriorities(Map.of("career-system-design", 4));
+    void anOldPriorityProposalStillLoads() {
         agentAnswers("I'd raise System design.", PRIORITIES);
         long id = chat.send("review my week").id();
+        chat.reject(id);
 
-        assertThatThrownBy(() -> chat.apply(id)).isInstanceOf(ProposalNotAvailableException.class)
-            .hasMessage("Your goals changed since this proposal");
+        ProposalDto loaded = chat.thread(TODAY).get(1).proposal();
 
-        verify(planService, never()).replanUntouchedDays(any());
+        assertThat(loaded.kind()).isEqualTo("PRIORITIES");
+        assertThat(loaded.status()).isEqualTo("REJECTED");
+        assertThat(loaded.priorityChanges()).extracting(PriorityChange::goalName).containsExactly("System design");
     }
 
     @Test

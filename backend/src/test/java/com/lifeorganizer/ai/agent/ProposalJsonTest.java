@@ -21,9 +21,10 @@ class ProposalJsonTest {
 
     @Test
     void aPriorityProposalRoundTrips() {
-        Proposal proposal = Proposal.priorities("Exam on Friday",
-            List.of(new PriorityChange("career-system-design", "System design", 3, 5, "exam Friday")),
-            List.of("Would re-plan Thu 2026-10-01"));
+        // nothing creates these any more; threads saved before still hold them
+        Proposal proposal = new Proposal(Proposal.Kind.PRIORITIES, "Exam on Friday", List.of(),
+            List.of("Would re-plan Thu 2026-10-01"), null,
+            List.of(new PriorityChange("career-system-design", "System design", 3, 5, "exam Friday")));
 
         Proposal read = ToolJson.MAPPER.readValue(ToolJson.write(proposal), Proposal.class);
 

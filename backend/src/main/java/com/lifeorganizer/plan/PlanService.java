@@ -36,8 +36,7 @@ import java.util.Set;
 
 /**
  * Orchestrates the Phase 1a engine on top of the stores. A day is generated lazily the first time it
- * is requested and is never regenerated afterwards, except by {@code replanUntouchedDays} (untouched days later this
- * week after a priority change); replan events are applied to persisted rows by diffing.
+ * is requested and is never regenerated afterwards; replan events are applied to persisted rows by diffing.
  */
 @Service
 public class PlanService {
@@ -132,41 +131,6 @@ public class PlanService {
             allChanges.addAll(result.changes());
         }
         return new AppliedEvent(getOrGenerate(today), allChanges);
-    }
-
-    /**
-     * Stored days after today in this week that the user has not acted on, oldest first. Reads stored days only and
-     * never generates one, so it is safe for the agent's tools.
-     */
-    @Transactional(readOnly = true)
-    public List<LocalDate> untouchedFutureDays(LocalDate today) {
-        List<LocalDate> days = new ArrayList<>();
-        LocalDate sunday = mondayOf(today).plusDays(6);
-        for (LocalDate date = today.plusDays(1); !date.isAfter(sunday); date = date.plusDays(1)) {
-            planStore.findDay(date).filter(PlanService::isUntouched).ifPresent(day -> days.add(day.date()));
-        }
-        return days;
-    }
-
-    /**
-     * Drops every untouched stored day after today in this week and generates it again from the current setup
-     * (used after goal priorities change). Today, touched days and days not stored yet are left alone.
-     */
-    @Transactional
-    public List<LocalDate> replanUntouchedDays(LocalDate today) {
-        planStore.lockGeneration();
-        List<LocalDate> days = untouchedFutureDays(today);
-        for (LocalDate date : days) {
-            planStore.deleteDay(date);
-            planStore.saveNewDay(generate(date));
-        }
-        return days;
-    }
-
-    /** A day the user has not acted on: only engine-planned blocks, none done, cancelled, postponed or ad hoc. */
-    static boolean isUntouched(DayPlan day) {
-        return day.blocks().stream().allMatch(block -> block.status() == BlockStatus.PLANNED
-            && block.kind() != BlockKind.ADHOC && block.postponeCount() == 0);
     }
 
     static LocalDate mondayOf(LocalDate date) {

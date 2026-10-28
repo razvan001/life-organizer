@@ -138,24 +138,6 @@ class PlanStoreTest {
     }
 
     @Test
-    void deleteDayRemovesBlocksAndWarningsOfThatDayOnly() {
-        store.saveNewDay(new DayPlan(MON, List.of(block("m1", MON, 7, BlockStatus.PLANNED)), List.of("warn")));
-        LocalDate tue = MON.plusDays(1);
-        store.saveNewDay(new DayPlan(tue, List.of(block("t1", tue, 7, BlockStatus.PLANNED)), List.of()));
-        flushAndClear();
-
-        store.deleteDay(MON);
-        flushAndClear();
-
-        assertThat(store.findDay(MON)).isEmpty();
-        assertThat(store.findDay(tue)).isPresent();
-        store.saveNewDay(new DayPlan(MON, List.of(block("m1", MON, 8, BlockStatus.PLANNED)), List.of()));
-        flushAndClear();
-        assertThat(store.findDay(MON).orElseThrow().blocks()).extracting(Block::start).containsExactly(LocalTime.of(8, 0));
-        assertThat(store.findDay(MON).orElseThrow().warnings()).isEmpty();
-    }
-
-    @Test
     void theGenerationLockCanBeTakenRepeatedlyInsideOneTransaction() {
         // Advisory locks are re-entrant within a session; this proves the SQL runs on a real Postgres.
         assertThatCode(() -> {

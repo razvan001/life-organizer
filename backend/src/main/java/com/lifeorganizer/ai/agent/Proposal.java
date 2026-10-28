@@ -7,8 +7,8 @@ import java.util.List;
 
 /**
  * The one change set the agent proposes in a turn. PLAN: events Apply will replay on today's plan, plus the
- * simulated result. PRIORITIES: new goal priorities; changes holds the human-readable re-plan note and preview is
- * null. JSON stored before slice 2 has no kind and reads as PLAN.
+ * simulated result. PRIORITIES: new goal priorities from the old weekly review; nothing creates them any more, they
+ * are only read from threads saved before. JSON stored before slice 2 has no kind and reads as PLAN.
  */
 public record Proposal(Kind kind, String rationale, List<ApplyEventRequest> events, List<String> changes,
                        TodayPlanResponse preview, List<PriorityChange> priorityChanges) {
@@ -24,9 +24,5 @@ public record Proposal(Kind kind, String rationale, List<ApplyEventRequest> even
 
     public Proposal(String rationale, List<ApplyEventRequest> events, List<String> changes, TodayPlanResponse preview) {
         this(Kind.PLAN, rationale, events, changes, preview, List.of());
-    }
-
-    public static Proposal priorities(String rationale, List<PriorityChange> priorityChanges, List<String> changes) {
-        return new Proposal(Kind.PRIORITIES, rationale, List.of(), changes, null, priorityChanges);
     }
 }

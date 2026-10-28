@@ -88,8 +88,4 @@ public class GoalEntity {
     public int getPosition() {
         return position;
     }
-
-    public void setPriority(int priority) {
-        this.priority = priority;
-    }
 }
