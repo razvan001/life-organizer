@@ -1,0 +1,73 @@
+/* Select, DateInput and TimeInput: native controls with a drawn chevron / calendar / clock icon. */
+
+.select,
+.date-field {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  max-width: 100%;
+}
+
+.select select {
+  appearance: none;
+  max-width: 100%;
+  padding-right: 2rem; /* room for the chevron: long option text must not run under it */
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.select select:disabled {
+  cursor: default;
+}
+
+.select-chevron,
+.date-field-icon {
+  position: absolute;
+  right: 0.6rem;
+  color: var(--color-subtle);
+  pointer-events: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.select:focus-within .select-chevron,
+.date-field:focus-within .date-field-icon {
+  color: var(--color-focus);
+}
+
+.select:has(select:disabled) .select-chevron,
+.date-field:has(input:disabled) .date-field-icon {
+  opacity: 0.5;
+}
+
+.date-field input {
+  padding-right: 2rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Chrome / Edge / Safari: the browser's picker button sits invisibly over the drawn icon, so a click on the icon
+   still opens the native calendar or clock. */
+.date-field input::-webkit-calendar-picker-indicator {
+  position: absolute;
+  right: 0.4rem;
+  width: 1.25rem;
+  height: 1.25rem;
+  margin: 0;
+  padding: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+
+/* Firefox draws its own picker button and has no indicator to hide: drop ours so there are not two icons. */
+@supports not selector(::-webkit-calendar-picker-indicator) {
+  .date-field-icon {
+    display: none;
+  }
+
+  .date-field input {
+    padding-right: 0.7rem;
+  }
+}
