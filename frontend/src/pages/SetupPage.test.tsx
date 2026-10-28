@@ -11,8 +11,9 @@ afterEach(() => vi.unstubAllGlobals())
 
 const EMPTY_SETUP = { categories: [], goals: [], constraints: [] }
 
-function renderSetup() {
-  return render(
+// The page shows "Loading…" until the saved setup answers; every test starts after that.
+async function renderSetup() {
+  const result = render(
     <MemoryRouter initialEntries={['/setup']}>
       <Routes>
         <Route path="/setup" element={<SetupPage />} />
@@ -20,13 +21,18 @@ function renderSetup() {
       </Routes>
     </MemoryRouter>,
   )
+  await waitFor(() => expect(screen.queryByText('Loading…')).not.toBeInTheDocument())
+  return result
 }
 
+const { warnings: _warnings, ...SAVED } = PARSED
+const AI_OFF = { aiEnabled: false, ragEnabled: false }
+
 describe('SetupPage', () => {
-  it('starts with the example text so a first visit needs no typing', () => {
+  it('starts with the example text so a first visit needs no typing', async () => {
     mockApi({ 'GET /api/setup': () => jsonResponse(EMPTY_SETUP) })
 
-    renderSetup()
+    await renderSetup()
 
     // jest-dom's toHaveValue does not take partial matchers, so compare the raw values
     expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
@@ -42,7 +48,7 @@ describe('SetupPage', () => {
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'POST /api/setup/parse': () => jsonResponse(PARSED),
     })
-    renderSetup()
+    await renderSetup()
 
     await user.click(screen.getByRole('button', { name: 'Parse' }))
 
@@ -66,7 +72,7 @@ describe('SetupPage', () => {
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'POST /api/setup/parse': () => problemResponse(400, 'Invalid request', 'goalsText must not be empty'),
     })
-    renderSetup()
+    await renderSetup()
 
     await user.click(screen.getByRole('button', { name: 'Parse' }))
 
@@ -80,7 +86,7 @@ describe('SetupPage', () => {
       'POST /api/setup/parse': () => jsonResponse(PARSED),
       'PUT /api/setup': () => jsonResponse(EMPTY_SETUP),
     })
-    renderSetup()
+    await renderSetup()
     await user.click(screen.getByRole('button', { name: 'Parse' }))
 
     await user.selectOptions(await screen.findByLabelText('Priority for Claude certification'), '5')
@@ -105,7 +111,7 @@ describe('SetupPage', () => {
       'POST /api/setup/parse': () => jsonResponse(PARSED),
       'PUT /api/setup': () => jsonResponse(EMPTY_SETUP),
     })
-    renderSetup()
+    await renderSetup()
     await user.click(screen.getByRole('button', { name: 'Parse' }))
 
     fireEvent.change(await screen.findByLabelText('Deadline for Gym'), { target: { value: '2026-12-31' } })
@@ -123,7 +129,7 @@ describe('SetupPage', () => {
       'POST /api/setup/parse': () => jsonResponse(PARSED),
       'PUT /api/setup': () => problemResponse(400, 'Invalid request', "goal 'gym': priority must be between 1 and 5"),
     })
-    renderSetup()
+    await renderSetup()
     await user.click(screen.getByRole('button', { name: 'Parse' }))
 
     await user.click(await screen.findByRole('button', { name: 'Save' }))
@@ -133,25 +139,13 @@ describe('SetupPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
   })
 
-  it('shows the saved setup on a return visit', async () => {
-    const { warnings: _warnings, ...saved } = PARSED
-    mockApi({ 'GET /api/setup': () => jsonResponse(saved) })
-
-    renderSetup()
-
-    expect(await screen.findByText('Saved setup')).toBeInTheDocument()
-    expect(within(screen.getByText('Career').parentElement!).getByText('Claude certification')).toBeInTheDocument()
-    expect(screen.getByLabelText('Deadline for Claude certification')).toHaveValue('2026-10-01')
-    expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
-  })
-
   it('disables Save and explains why once the text changed after a Parse', async () => {
     const user = userEvent.setup()
     mockApi({
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'POST /api/setup/parse': () => jsonResponse(PARSED),
     })
-    renderSetup()
+    await renderSetup()
     await user.click(screen.getByRole('button', { name: 'Parse' }))
     expect(await screen.findByRole('button', { name: 'Save' })).toBeEnabled()
 
@@ -172,7 +166,7 @@ describe('SetupPage', () => {
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'POST /api/setup/parse': () => jsonResponse(PARSED),
     })
-    renderSetup()
+    await renderSetup()
     await user.click(screen.getByRole('button', { name: 'Parse' }))
     await screen.findByRole('button', { name: 'Save' })
 
@@ -188,7 +182,7 @@ describe('SetupPage', () => {
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'POST /api/setup/parse': () => new Promise<Response>((resolve) => (finish = resolve)),
     })
-    renderSetup()
+    await renderSetup()
     await user.click(screen.getByRole('button', { name: 'Parse' }))
 
     await user.type(screen.getByLabelText('Goals'), ' more')
@@ -198,65 +192,18 @@ describe('SetupPage', () => {
     expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
   })
 
-  it('empties the boxes on a return visit so the example cannot replace the saved setup', async () => {
-    const { warnings: _warnings, ...saved } = PARSED
-    mockApi({ 'GET /api/setup': () => jsonResponse(saved) })
-
-    renderSetup()
-
-    expect(await screen.findByText('Saved setup')).toBeInTheDocument()
-    expect(screen.getByLabelText('Goals')).toHaveValue('')
-    expect(screen.getByLabelText('Constraints (one per line)')).toHaveValue('')
-    expect(
-      screen.getByText(
-        'Your saved setup is shown below. To replace it, paste new goals and constraints here and press Parse.',
-      ),
-    ).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Parse' })).toBeDisabled()
-  })
-
-  it('enables Parse again once goals are typed on a return visit', async () => {
-    const user = userEvent.setup()
-    const { warnings: _warnings, ...saved } = PARSED
-    mockApi({ 'GET /api/setup': () => jsonResponse(saved) })
-    renderSetup()
-    await screen.findByText('Saved setup')
-
-    await user.type(screen.getByLabelText('Goals'), 'Health: Gym')
-
-    expect(screen.getByRole('button', { name: 'Parse' })).toBeEnabled()
-  })
-
-  it('keeps what the user typed when the saved setup arrives later', async () => {
-    const user = userEvent.setup()
-    const { warnings: _warnings, ...saved } = PARSED
-    let answer: (response: Response) => void = () => {}
-    mockApi({ 'GET /api/setup': () => new Promise<Response>((resolve) => (answer = resolve)) })
-    renderSetup()
-
-    await user.type(screen.getByLabelText('Goals'), '!')
-    answer(jsonResponse(saved))
-
-    expect(await screen.findByText('Saved setup')).toBeInTheDocument()
-    expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
-    expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toMatch(/!$/)
-    expect((screen.getByLabelText('Constraints (one per line)') as HTMLTextAreaElement).value).toContain('Work:')
-    expect(screen.queryByText(/Your saved setup is shown below/)).not.toBeInTheDocument()
-  })
-
   it('keeps the example and an enabled Parse on a first visit, even after the setup answer arrived', async () => {
     const fetchMock = mockApi({
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
     })
 
-    renderSetup()
+    await renderSetup()
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2))
     await act(async () => {})
 
     expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
     expect(screen.getByRole('button', { name: 'Parse' })).toBeEnabled()
-    expect(screen.queryByText(/Your saved setup is shown below/)).not.toBeInTheDocument()
   })
 
   it('cannot save a parse that found no goals', async () => {
@@ -265,31 +212,12 @@ describe('SetupPage', () => {
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'POST /api/setup/parse': () => jsonResponse({ ...EMPTY_SETUP, warnings: ['Unrecognized line: ???'] }),
     })
-    renderSetup()
+    await renderSetup()
 
     await user.click(screen.getByRole('button', { name: 'Parse' }))
 
     expect(await screen.findByText('Unrecognized line: ???')).toBeInTheDocument()
     await waitFor(() => expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled())
-  })
-
-  it('puts the example back into the boxes on a return visit without calling the backend', async () => {
-    const user = userEvent.setup()
-    const { warnings: _warnings, ...saved } = PARSED
-    const fetchMock = mockApi({
-      'GET /api/setup': () => jsonResponse(saved),
-      'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
-    })
-    renderSetup()
-    await screen.findByText('Saved setup')
-    expect(screen.getByLabelText('Goals')).toHaveValue('')
-
-    await user.click(screen.getByRole('button', { name: 'Use example text' }))
-
-    expect((screen.getByLabelText('Goals') as HTMLTextAreaElement).value).toContain('Claude certification')
-    expect((screen.getByLabelText('Constraints (one per line)') as HTMLTextAreaElement).value).toContain('Work:')
-    expect(screen.getByRole('button', { name: 'Parse' })).toBeEnabled()
-    expect(fetchMock.mock.calls.map(([path]) => path).sort()).toEqual(['/api/config', '/api/setup'])
   })
 
   it('marks a shown preview stale until Parse is pressed again', async () => {
@@ -298,7 +226,7 @@ describe('SetupPage', () => {
       'GET /api/setup': () => jsonResponse(EMPTY_SETUP),
       'POST /api/setup/parse': () => jsonResponse(PARSED),
     })
-    renderSetup()
+    await renderSetup()
     await user.click(screen.getByRole('button', { name: 'Parse' }))
     expect(await screen.findByRole('button', { name: 'Save' })).toBeEnabled()
 
@@ -316,7 +244,7 @@ describe('SetupPage', () => {
   it('restores the full example goals after they were replaced', async () => {
     const user = userEvent.setup()
     mockApi({ 'GET /api/setup': () => jsonResponse(EMPTY_SETUP) })
-    renderSetup()
+    await renderSetup()
     const goals = screen.getByLabelText('Goals') as HTMLTextAreaElement
     await user.clear(goals)
     await user.type(goals, 'Hobbies - padel')
@@ -325,6 +253,152 @@ describe('SetupPage', () => {
     await user.click(screen.getByRole('button', { name: 'Use example text' }))
 
     expect(goals.value).toBe(EXAMPLE_GOALS)
+  })
+
+  describe('with a saved setup', () => {
+    it('shows it as an editor without the text boxes', async () => {
+      mockApi({ 'GET /api/setup': () => jsonResponse(SAVED), 'GET /api/config': () => jsonResponse(AI_OFF) })
+
+      await renderSetup()
+
+      expect(screen.queryByLabelText('Goals')).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Parse' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Remove Gym' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+      expect(screen.queryByRole('button', { name: 'Discard changes' })).not.toBeInTheDocument()
+      expect(
+        screen.getByText('Days that are already planned keep their plan. Days that are not planned yet use this setup.'),
+      ).toBeInTheDocument()
+    })
+
+    it('saves a removed goal without its quota, then opens Today', async () => {
+      const user = userEvent.setup()
+      const fetchMock = mockApi({
+        'GET /api/setup': () => jsonResponse(SAVED),
+        'GET /api/config': () => jsonResponse(AI_OFF),
+        'PUT /api/setup': () => jsonResponse(SAVED),
+      })
+      await renderSetup()
+
+      await user.click(screen.getByRole('button', { name: 'Remove Gym' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByText('Today screen')).toBeInTheDocument()
+      const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
+      expect(JSON.parse(put[1]!.body as string)).toEqual({
+        categories: [SAVED.categories[0]],
+        goals: [SAVED.goals[0]],
+        constraints: [SAVED.constraints[0]],
+      })
+    })
+
+    it('discards changes', async () => {
+      const user = userEvent.setup()
+      mockApi({ 'GET /api/setup': () => jsonResponse(SAVED), 'GET /api/config': () => jsonResponse(AI_OFF) })
+      await renderSetup()
+
+      await user.selectOptions(screen.getByLabelText('Priority for Gym'), '5')
+      await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+      expect(screen.getByLabelText('Priority for Gym')).toHaveValue('3')
+      expect(screen.queryByRole('button', { name: 'Discard changes' })).not.toBeInTheDocument()
+    })
+
+    it('puts an emptied number back on Discard changes', async () => {
+      const user = userEvent.setup()
+      mockApi({ 'GET /api/setup': () => jsonResponse(SAVED), 'GET /api/config': () => jsonResponse(AI_OFF) })
+      await renderSetup()
+
+      await user.clear(screen.getByLabelText('Times per week for Gym'))
+      await user.click(screen.getByRole('button', { name: 'Discard changes' }))
+
+      expect(screen.getByLabelText('Times per week for Gym')).toHaveValue('4')
+    })
+
+    it('blocks Save while a field is invalid', async () => {
+      const user = userEvent.setup()
+      mockApi({ 'GET /api/setup': () => jsonResponse(SAVED), 'GET /api/config': () => jsonResponse(AI_OFF) })
+      await renderSetup()
+
+      await user.clear(screen.getByLabelText('Times per week for Gym'))
+
+      expect(screen.getByRole('button', { name: 'Save' })).toBeDisabled()
+    })
+
+    it('keeps the edits when saving fails', async () => {
+      const user = userEvent.setup()
+      mockApi({
+        'GET /api/setup': () => jsonResponse(SAVED),
+        'GET /api/config': () => jsonResponse(AI_OFF),
+        'PUT /api/setup': () => problemResponse(400, 'Invalid request', 'label must be at most 255 characters'),
+      })
+      await renderSetup()
+
+      await user.click(screen.getByRole('button', { name: 'Remove Gym' }))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByText('label must be at most 255 characters')).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Remove Gym' })).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Save' })).toBeEnabled()
+    })
+
+    it('adds goals from the brain dump and lists what it skipped', async () => {
+      const user = userEvent.setup()
+      const azure = { ...SAVED.goals[0], id: 'azure', name: 'Azure AI', deadline: null }
+      const gym = { ...SAVED.goals[1], id: 'gym', priority: 1 }
+      const fetchMock = mockApi({
+        'GET /api/setup': () => jsonResponse(SAVED),
+        'GET /api/config': () => jsonResponse({ aiEnabled: true, ragEnabled: false }),
+        'POST /api/setup/extract': () =>
+          jsonResponse({ categories: [], goals: [azure, gym], constraints: [], warnings: [] }),
+        'PUT /api/setup': () => jsonResponse(SAVED),
+      })
+      await renderSetup()
+
+      await user.type(await screen.findByLabelText('Describe goals to add in your own words'), 'azure and gym')
+      await user.click(screen.getByRole('button', { name: 'Add from text' }))
+
+      const azureRow = (await screen.findByText('Azure AI', { selector: '.goal-name' })).closest('li')!
+      expect(within(azureRow).getByText('new')).toBeInTheDocument()
+      expect(screen.getByText('Skipped goal "Gym": it already exists.')).toBeInTheDocument()
+      expect(screen.getByLabelText('Describe goals to add in your own words')).toHaveValue('')
+
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      await screen.findByText('Today screen')
+      const put = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')!
+      const sent = JSON.parse(put[1]!.body as string)
+      expect(sent.goals.map((goal: { id: string }) => goal.id)).toEqual([
+        'career-claude-certification',
+        'health-gym',
+        'career-azure-ai',
+      ])
+      expect(sent.goals[1]).toEqual(SAVED.goals[1])
+    })
+
+    it('shows the error when adding from text fails', async () => {
+      const user = userEvent.setup()
+      mockApi({
+        'GET /api/setup': () => jsonResponse(SAVED),
+        'GET /api/config': () => jsonResponse({ aiEnabled: true, ragEnabled: false }),
+        'POST /api/setup/extract': () =>
+          problemResponse(502, 'Assistant unavailable', 'The assistant is unavailable right now'),
+      })
+      await renderSetup()
+
+      await user.type(await screen.findByLabelText('Describe goals to add in your own words'), 'chess')
+      await user.click(screen.getByRole('button', { name: 'Add from text' }))
+
+      expect(await screen.findByText('The assistant is unavailable right now')).toBeInTheDocument()
+    })
+  })
+
+  it('opens the first-visit flow when the saved setup cannot be loaded', async () => {
+    mockApi({ 'GET /api/setup': () => problemResponse(500, 'Server error', 'boom') })
+
+    await renderSetup()
+
+    expect(screen.getByLabelText('Goals')).toHaveValue(EXAMPLE_GOALS)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   describe('brain dump', () => {
@@ -336,7 +410,7 @@ describe('SetupPage', () => {
         'GET /api/config': () => jsonResponse({ aiEnabled: false, ragEnabled: false }),
       })
 
-      renderSetup()
+      await renderSetup()
 
       await waitFor(() => expect(screen.getByLabelText('Goals')).toBeInTheDocument())
       expect(screen.queryByRole('button', { name: 'Extract goals and constraints' })).not.toBeInTheDocument()
@@ -349,7 +423,7 @@ describe('SetupPage', () => {
         'GET /api/config': () => jsonResponse(AI_ON),
         'POST /api/setup/extract': () => jsonResponse(PARSED),
       })
-      renderSetup()
+      await renderSetup()
       const button = await screen.findByRole('button', { name: 'Extract goals and constraints' })
       expect(button).toBeDisabled()
 
@@ -370,7 +444,7 @@ describe('SetupPage', () => {
         'GET /api/config': () => jsonResponse(AI_ON),
         'POST /api/setup/extract': () => problemResponse(502, 'Assistant unavailable', 'The assistant is unavailable right now'),
       })
-      renderSetup()
+      await renderSetup()
       await user.type(await screen.findByLabelText(/in your own words/), 'something')
 
       await user.click(screen.getByRole('button', { name: 'Extract goals and constraints' }))

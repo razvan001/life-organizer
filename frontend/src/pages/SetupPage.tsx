@@ -2,55 +2,67 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api, errorMessage } from '../api/client'
 import { useApi } from '../api/useApi'
-import type { SetupParseResponse } from '../api/types'
+import type { SetupParseResponse, SetupPayload } from '../api/types'
+import { SetupEditor } from '../components/SetupEditor'
 import { SetupPreview } from '../components/SetupPreview'
+import { type DraftSetup, hasProblems, isChanged, toDraft, toPayload } from '../setup/editSetup'
 import { EXAMPLE_CONSTRAINTS, EXAMPLE_GOALS } from '../setup/example'
+import { mergeExtraction } from '../setup/mergeExtraction'
 
+const PLANNED_DAYS_NOTE = 'Days that are already planned keep their plan. Days that are not planned yet use this setup.'
+
+/**
+ * Without a saved setup, the user pastes or describes one and saves it (FirstSetup). Once one is saved, the page
+ * is an editor for it (SavedSetup): no text boxes, every change in place, one Save.
+ */
 export function SetupPage() {
-  const navigate = useNavigate()
-  const [goalsText, setGoalsText] = useState(EXAMPLE_GOALS)
-  const [constraintsText, setConstraintsText] = useState(EXAMPLE_CONSTRAINTS)
-  const [preview, setPreview] = useState<SetupParseResponse | null>(null)
-  const [previewTitle, setPreviewTitle] = useState('')
+  // undefined while loading, null when there is nothing saved (or it could not be loaded)
+  const [saved, setSaved] = useState<SetupPayload | null | undefined>(undefined)
   const { data: config } = useApi(api.getConfig)
-  const [dumpText, setDumpText] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  // True when a text box was edited after the last Parse: the preview no longer matches the text.
-  const [stale, setStale] = useState(false)
-  // True when the boxes were emptied because a saved setup exists (see the effect below).
-  const [savedHint, setSavedHint] = useState(false)
-  // Counts edits of either text box. A ref, not state: changing it must not re-render the page.
-  const textEdits = useRef(0)
+  const aiEnabled = config?.aiEnabled ?? false
 
-  // On a return visit, show what is already saved. A failure here is not worth an error message:
-  // the Parse button reports an unreachable backend the moment it is used.
+  // A failure here is not worth an error message: the first-visit flow reports an unreachable backend the moment
+  // Parse is used.
   useEffect(() => {
     let cancelled = false
     api.getSetup().then(
-      (saved) => {
-        if (cancelled || saved.goals.length === 0) return
-        // do not overwrite a parse the user already started
-        setPreview((current) => current ?? { ...saved, warnings: [] })
-        setPreviewTitle((current) => current || 'Saved setup')
-        // The boxes still hold the example, which is not what is saved. Leaving it there would invite
-        // "Parse, Save" and silently replace the saved setup with the example. Empty them instead,
-        // unless the user already started typing.
-        if (textEdits.current === 0) {
-          setGoalsText('')
-          setConstraintsText('')
-          setSavedHint(true)
-        }
+      (setup) => {
+        if (!cancelled) setSaved(setup.goals.length > 0 ? setup : null)
       },
-      () => {},
+      () => {
+        if (!cancelled) setSaved(null)
+      },
     )
     return () => {
       cancelled = true
     }
   }, [])
 
-  // Every change of the text goes through here: it stops a late saved-setup answer from emptying the
-  // boxes and marks a shown preview as no longer matching the text.
+  return (
+    <section>
+      <h2>Setup</h2>
+      {saved === undefined && <p className="muted">Loading…</p>}
+      {saved === null && <FirstSetup aiEnabled={aiEnabled} />}
+      {saved && <SavedSetup saved={saved} aiEnabled={aiEnabled} />}
+    </section>
+  )
+}
+
+function FirstSetup({ aiEnabled }: { aiEnabled: boolean }) {
+  const navigate = useNavigate()
+  const [goalsText, setGoalsText] = useState(EXAMPLE_GOALS)
+  const [constraintsText, setConstraintsText] = useState(EXAMPLE_CONSTRAINTS)
+  const [preview, setPreview] = useState<SetupParseResponse | null>(null)
+  const [previewTitle, setPreviewTitle] = useState('')
+  const [dumpText, setDumpText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  // True when a text box was edited after the last Parse: the preview no longer matches the text.
+  const [stale, setStale] = useState(false)
+  // Counts edits of either text box. A ref, not state: changing it must not re-render the page.
+  const textEdits = useRef(0)
+
+  // Every change of the text goes through here: it marks a shown preview as no longer matching the text.
   function markTextEdited() {
     textEdits.current++
     if (preview) setStale(true)
@@ -89,7 +101,7 @@ export function SetupPage() {
     }
   }
 
-  // A third way to fill the preview, next to Parse and the saved setup. Nothing is saved until Save.
+  // A second way to fill the preview, next to Parse. Nothing is saved until Save.
   async function extract() {
     setBusy(true)
     setError(null)
@@ -122,14 +134,7 @@ export function SetupPage() {
   }
 
   return (
-    <section>
-      <h2>Setup</h2>
-
-      {savedHint && (
-        <p className="muted">
-          Your saved setup is shown below. To replace it, paste new goals and constraints here and press Parse.
-        </p>
-      )}
+    <>
       <div className="field">
         <label htmlFor="goals-text">Goals</label>
         <textarea id="goals-text" rows={16} value={goalsText} onChange={(event) => editGoals(event.target.value)} />
@@ -151,7 +156,7 @@ export function SetupPage() {
         Use example text
       </button>
 
-      {config?.aiEnabled && (
+      {aiEnabled && (
         <div className="field">
           <label htmlFor="brain-dump">Or describe your goals and constraints in your own words</label>
           <textarea
@@ -172,9 +177,7 @@ export function SetupPage() {
         <>
           <h3>{previewTitle}</h3>
           <SetupPreview value={preview} onChange={setPreview} />
-          <p className="muted">
-            Days that are already planned keep their plan. Days that are not planned yet use this setup.
-          </p>
+          <p className="muted">{PLANNED_DAYS_NOTE}</p>
           {stale && (
             <p className="muted">The text changed since the last Parse. Press Parse to apply your edits.</p>
           )}
@@ -183,6 +186,96 @@ export function SetupPage() {
           </button>
         </>
       )}
-    </section>
+    </>
+  )
+}
+
+function SavedSetup({ saved, aiEnabled }: { saved: SetupPayload; aiEnabled: boolean }) {
+  const navigate = useNavigate()
+  const [draft, setDraft] = useState<DraftSetup>(() => toDraft(saved))
+  const [newGoalIds, setNewGoalIds] = useState<string[]>([])
+  const [warnings, setWarnings] = useState<string[]>([])
+  const [dumpText, setDumpText] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  function discard() {
+    setDraft(toDraft(saved))
+    setNewGoalIds([])
+    setWarnings([])
+    setError(null)
+  }
+
+  // Adds to the setup on screen; never replaces it. Nothing is saved until Save.
+  async function addFromText() {
+    setBusy(true)
+    setError(null)
+    try {
+      const result = mergeExtraction(draft, await api.extractSetup({ text: dumpText }))
+      setDraft(result.draft)
+      setNewGoalIds((ids) => [...ids, ...result.addedGoalIds])
+      setWarnings(result.warnings)
+      setDumpText('')
+    } catch (failure) {
+      setError(errorMessage(failure))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function save() {
+    setBusy(true)
+    setError(null)
+    try {
+      await api.saveSetup(toPayload(draft))
+      navigate('/')
+    } catch (failure) {
+      setError(errorMessage(failure))
+      setBusy(false)
+    }
+  }
+
+  return (
+    <>
+      <SetupEditor
+        draft={draft}
+        onChange={setDraft}
+        onGoalAdded={(goalId) => setNewGoalIds((ids) => [...ids, goalId])}
+        newGoalIds={newGoalIds}
+        warnings={warnings}
+        disabled={busy}
+      />
+
+      {aiEnabled && (
+        <div className="field">
+          <label htmlFor="brain-dump">Describe goals to add in your own words</label>
+          <textarea
+            id="brain-dump"
+            rows={4}
+            maxLength={4000}
+            value={dumpText}
+            disabled={busy}
+            onChange={(event) => setDumpText(event.target.value)}
+          />
+          <button type="button" disabled={busy || dumpText.trim() === ''} onClick={addFromText}>
+            Add from text
+          </button>
+        </div>
+      )}
+      {error && <p role="alert">{error}</p>}
+
+      <p className="muted">{PLANNED_DAYS_NOTE}</p>
+      <button type="button" disabled={busy || hasProblems(draft)} onClick={save}>
+        Save
+      </button>
+      {isChanged(draft, saved) && (
+        <>
+          {' '}
+          <button type="button" disabled={busy} onClick={discard}>
+            Discard changes
+          </button>
+        </>
+      )}
+    </>
   )
 }
