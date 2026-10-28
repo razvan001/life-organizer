@@ -91,6 +91,9 @@ cd frontend && npm run build                  # tsc -b type-check + production b
 - Pages: `TodayPage` (timeline, block actions, `ChatPanel` when `config.aiEnabled`), `SetupPage` (regex
   parse, saved setup, and brain-dump extraction all feed one `SetupPreview`), `NotesPage` (notes CRUD + memory
   search). Confirmations use the shared `ChangeToast`.
+- Styling: design tokens and shared control / card styles in `index.css` (base element rules sit in `:where()`,
+  zero specificity), and `Select` / `DateInput` / `TimeInput` in `components/form/`; no raw `<select>` or
+  date / time inputs (`test/noRawControls.test.ts`). Read `frontend/UI.md` before adding UI.
 - Tests: Vitest + Testing Library; `test/mockApi.ts` stubs `fetch` with routes keyed `"METHOD /path?query"`
   and fails on any unexpected request, so a page that also fetches `/api/config` needs that route too.
 
