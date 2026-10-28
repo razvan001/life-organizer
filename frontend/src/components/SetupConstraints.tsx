@@ -8,6 +8,7 @@ import {
   removeConstraint,
   updateConstraint,
 } from '../setup/editSetup'
+import { Select, TimeInput } from './form/FormControls'
 
 const WEEK = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
 const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -68,7 +69,12 @@ export function SetupConstraints({ draft, onChange, disabled }: Props) {
                   onChange={(next) => onChange(updateConstraint(draft, key, next))}
                 />
                 {isNew && <span className="new-tag">new</span>}
-                <button type="button" disabled={disabled} onClick={() => onChange(removeConstraint(draft, key))}>
+                <button
+                  className="btn-danger btn-small"
+                  type="button"
+                  disabled={disabled}
+                  onClick={() => onChange(removeConstraint(draft, key))}
+                >
                   Remove constraint {name}
                 </button>
               </div>
@@ -103,15 +109,13 @@ function ConstraintFields({ value, name, disabled, onChange }: FieldsProps) {
             disabled={disabled}
             onChange={(event) => set({ label: event.target.value })}
           />
-          <input
-            type="time"
+          <TimeInput
             aria-label={`Start for ${name}`}
             value={value.start ?? ''}
             disabled={disabled}
             onChange={(event) => set({ start: event.target.value })}
           />
-          <input
-            type="time"
+          <TimeInput
             aria-label={`End for ${name}`}
             value={value.end ?? ''}
             disabled={disabled}
@@ -271,7 +275,7 @@ function AddConstraintForm({ draft, onChange, disabled }: Props) {
   const goalTarget = value.type === 'FREQUENCY_QUOTA'
   return (
     <div className="add-form">
-      <select
+      <Select
         aria-label="Constraint type"
         value={value.type}
         disabled={disabled}
@@ -282,13 +286,13 @@ function AddConstraintForm({ draft, onChange, disabled }: Props) {
             {TYPE_NAMES[type]}
           </option>
         ))}
-      </select>
+      </Select>
       {isQuota && targets.length === 0 ? (
         <span className="muted">{goalTarget ? 'Every goal already has one.' : 'Every category already has one.'}</span>
       ) : (
         <>
           {isQuota && (
-            <select
+            <Select
               aria-label={goalTarget ? 'Goal for the new constraint' : 'Category for the new constraint'}
               value={target?.id ?? ''}
               disabled={disabled}
@@ -299,10 +303,15 @@ function AddConstraintForm({ draft, onChange, disabled }: Props) {
                   {candidate.name}
                 </option>
               ))}
-            </select>
+            </Select>
           )}
           <ConstraintFields value={value} name="the new constraint" disabled={disabled} onChange={setValue} />
-          <button type="button" disabled={disabled || constraintProblem(complete) !== null} onClick={add}>
+          <button
+            className="btn-primary"
+            type="button"
+            disabled={disabled || constraintProblem(complete) !== null}
+            onClick={add}
+          >
             Add constraint
           </button>
         </>

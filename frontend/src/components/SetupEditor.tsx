@@ -9,6 +9,7 @@ import {
   updateGoal,
 } from '../setup/editSetup'
 import { SetupConstraints } from './SetupConstraints'
+import { DateInput, Select } from './form/FormControls'
 import './SetupEditor.css'
 
 interface Props {
@@ -62,7 +63,7 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings
                         </span>
                       )}
                     </span>
-                    <select
+                    <Select
                       aria-label={`Priority for ${goal.name}`}
                       value={goal.priority}
                       disabled={disabled}
@@ -73,9 +74,8 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings
                           {priority}
                         </option>
                       ))}
-                    </select>
-                    <input
-                      type="date"
+                    </Select>
+                    <DateInput
                       aria-label={`Deadline for ${goal.name}`}
                       value={goal.deadline ?? ''}
                       disabled={disabled}
@@ -84,7 +84,12 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings
                         onChange(updateGoal(draft, goal.id, { deadline: event.target.value || null }))
                       }
                     />
-                    <button type="button" disabled={disabled} onClick={() => onChange(removeGoal(draft, goal.id))}>
+                    <button
+                      className="btn-danger btn-small"
+                      type="button"
+                      disabled={disabled}
+                      onClick={() => onChange(removeGoal(draft, goal.id))}
+                    >
                       Remove {goal.name}
                     </button>
                   </li>
@@ -139,7 +144,7 @@ function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'ne
         disabled={disabled}
         onChange={(event) => setName(event.target.value)}
       />
-      <select
+      <Select
         aria-label="Category for the new goal"
         value={categoryId}
         disabled={disabled}
@@ -151,7 +156,7 @@ function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'ne
           </option>
         ))}
         <option value={NEW_CATEGORY}>New category…</option>
-      </select>
+      </Select>
       {categoryId === NEW_CATEGORY && (
         <input
           aria-label="New category name"
@@ -161,7 +166,7 @@ function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'ne
           onChange={(event) => setNewCategoryName(event.target.value)}
         />
       )}
-      <button type="button" disabled={disabled} onClick={add}>
+      <button className="btn-primary" type="button" disabled={disabled} onClick={add}>
         Add goal
       </button>
       {error && <p role="alert">{error}</p>}

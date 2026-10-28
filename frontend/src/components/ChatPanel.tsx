@@ -4,6 +4,7 @@ import type { ApplyEventsResponse, BlockDto, ChatMessageDto } from '../api/types
 import { useApi } from '../api/useApi'
 import { PriorityProposalCard } from './PriorityProposalCard'
 import { ProposalCard } from './ProposalCard'
+import { Select } from './form/FormControls'
 import './ChatPanel.css'
 
 /** What the "Review my week" shortcut sends. */
@@ -168,14 +169,14 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
               <label htmlFor={pickerId} className="visually-hidden">
                 Earlier chats
               </label>
-              <select id={pickerId} value={pastDay} onChange={(event) => setPastDay(event.target.value)}>
+              <Select id={pickerId} value={pastDay} onChange={(event) => setPastDay(event.target.value)}>
                 <option value="">Today</option>
                 {earlierDays.map((day) => (
                   <option key={day} value={day}>
                     {day}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           )}
           <button

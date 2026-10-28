@@ -1,5 +1,6 @@
 import type { GoalDto, SetupParseResponse } from '../api/types'
 import { describeConstraint } from '../setup/describeConstraint'
+import { DateInput, Select } from './form/FormControls'
 
 interface Props {
   value: SetupParseResponse
@@ -40,7 +41,7 @@ export function SetupPreview({ value, onChange }: Props) {
               .map((goal) => (
                 <li key={goal.id}>
                   <span className="goal-name">{goal.name}</span>
-                  <select
+                  <Select
                     aria-label={`Priority for ${goal.name}`}
                     value={goal.priority}
                     onChange={(event) => updateGoal(goal.id, { priority: Number(event.target.value) })}
@@ -50,9 +51,8 @@ export function SetupPreview({ value, onChange }: Props) {
                         {priority}
                       </option>
                     ))}
-                  </select>
-                  <input
-                    type="date"
+                  </Select>
+                  <DateInput
                     aria-label={`Deadline for ${goal.name}`}
                     value={goal.deadline ?? ''}
                     // an empty date input gives "", but the backend wants null for "no deadline"

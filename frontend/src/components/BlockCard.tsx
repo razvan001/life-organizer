@@ -85,13 +85,29 @@ export function BlockCard({ block, busy, onAction }: Props) {
 
       {actionable && !postponing && (
         <div className="block-actions">
-          <button type="button" disabled={busy} onClick={() => onAction({ type: 'MARK_DONE', blockId: block.id })}>
+          <button
+            className="btn-small"
+            type="button"
+            disabled={busy}
+            onClick={() => onAction({ type: 'MARK_DONE', blockId: block.id })}
+          >
             Done
           </button>
-          <button ref={postponeButtonRef} type="button" disabled={busy} onClick={() => setPostponing(true)}>
+          <button
+            className="btn-small"
+            ref={postponeButtonRef}
+            type="button"
+            disabled={busy}
+            onClick={() => setPostponing(true)}
+          >
             Postpone
           </button>
-          <button type="button" disabled={busy} onClick={() => onAction({ type: 'CANCEL_BLOCK', blockId: block.id })}>
+          <button
+            className="btn-small"
+            type="button"
+            disabled={busy}
+            onClick={() => onAction({ type: 'CANCEL_BLOCK', blockId: block.id })}
+          >
             Cancel
           </button>
         </div>
@@ -114,10 +130,11 @@ export function BlockCard({ block, busy, onAction }: Props) {
             autoFocus // the user just pressed Postpone: let them type the reason straight away
             onChange={(event) => setReason(event.target.value)}
           />
-          <button type="submit" disabled={busy}>
+          <button className="btn-primary btn-small" type="submit" disabled={busy}>
             Confirm postpone
           </button>
           <button
+            className="btn-small"
             type="button"
             onClick={() => {
               backedOut.current = true

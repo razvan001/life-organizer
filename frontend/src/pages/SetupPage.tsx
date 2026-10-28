@@ -149,7 +149,7 @@ function FirstSetup({ aiEnabled }: { aiEnabled: boolean }) {
         />
       </div>
 
-      <button type="button" disabled={busy || goalsText.trim() === ''} onClick={parse}>
+      <button className="btn-primary" type="button" disabled={busy || goalsText.trim() === ''} onClick={parse}>
         Parse
       </button>{' '}
       <button type="button" disabled={busy} onClick={useExample}>
@@ -166,7 +166,7 @@ function FirstSetup({ aiEnabled }: { aiEnabled: boolean }) {
             value={dumpText}
             onChange={(event) => setDumpText(event.target.value)}
           />
-          <button type="button" disabled={busy || dumpText.trim() === ''} onClick={extract}>
+          <button className="btn-primary" type="button" disabled={busy || dumpText.trim() === ''} onClick={extract}>
             Extract goals and constraints
           </button>
         </div>
@@ -181,7 +181,12 @@ function FirstSetup({ aiEnabled }: { aiEnabled: boolean }) {
           {stale && (
             <p className="muted">The text changed since the last Parse. Press Parse to apply your edits.</p>
           )}
-          <button type="button" disabled={busy || stale || preview.goals.length === 0} onClick={save}>
+          <button
+            className="btn-primary"
+            type="button"
+            disabled={busy || stale || preview.goals.length === 0}
+            onClick={save}
+          >
             Save
           </button>
         </>
@@ -257,7 +262,7 @@ function SavedSetup({ saved, aiEnabled }: { saved: SetupPayload; aiEnabled: bool
             disabled={busy}
             onChange={(event) => setDumpText(event.target.value)}
           />
-          <button type="button" disabled={busy || dumpText.trim() === ''} onClick={addFromText}>
+          <button className="btn-primary" type="button" disabled={busy || dumpText.trim() === ''} onClick={addFromText}>
             Add from text
           </button>
         </div>
@@ -267,13 +272,18 @@ function SavedSetup({ saved, aiEnabled }: { saved: SetupPayload; aiEnabled: bool
       <p className="muted">{PLANNED_DAYS_NOTE}</p>
       {/* without goals the next visit would open the first-visit flow and hide the saved constraints */}
       {draft.goals.length === 0 && <p className="muted">Keep at least one goal to save.</p>}
-      <button type="button" disabled={busy || hasProblems(draft) || draft.goals.length === 0} onClick={save}>
+      <button
+        className="btn-primary"
+        type="button"
+        disabled={busy || hasProblems(draft) || draft.goals.length === 0}
+        onClick={save}
+      >
         Save
       </button>
       {isChanged(draft, saved) && (
         <>
           {' '}
-          <button type="button" disabled={busy} onClick={discard}>
+          <button className="btn-danger" type="button" disabled={busy} onClick={discard}>
             Discard changes
           </button>
         </>

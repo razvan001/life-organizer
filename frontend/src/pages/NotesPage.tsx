@@ -151,7 +151,7 @@ export function NotesPage() {
             onChange={(e) => setQuery(e.target.value)}
           />
         </div>
-        <button type="submit" disabled={busy || query.trim() === ''}>
+        <button className="btn-primary" type="submit" disabled={busy || query.trim() === ''}>
           Search
         </button>
       </form>
@@ -166,7 +166,7 @@ export function NotesPage() {
               <strong>{result.title}</strong> <span className="muted">{result.score.toFixed(2)}</span>
               <p>{result.snippet}</p>
               {result.sourceType === 'NOTE' && (
-                <button type="button" disabled={busy} onClick={() => open(result.sourceId)}>
+                <button className="btn-small" type="button" disabled={busy} onClick={() => open(result.sourceId)}>
                   Open
                 </button>
               )}
@@ -247,11 +247,11 @@ export function NotesPage() {
           </span>
         </div>
       </div>
-      <button type="button" disabled={busy || titleMissing || bodyMissing} onClick={save}>
+      <button className="btn-primary" type="button" disabled={busy || titleMissing || bodyMissing} onClick={save}>
         Save note
       </button>{' '}
       {draft.id !== null && (
-        <button type="button" disabled={busy} onClick={remove}>
+        <button className="btn-danger" type="button" disabled={busy} onClick={remove}>
           Delete note
         </button>
       )}
