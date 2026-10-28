@@ -1,12 +1,9 @@
 package com.lifeorganizer.setup.api;
 
-import com.lifeorganizer.error.AiNotConfiguredException;
 import com.lifeorganizer.error.InvalidRequestException;
 import com.lifeorganizer.setup.api.dto.CategoryDto;
 import com.lifeorganizer.setup.api.dto.ConstraintDto;
 import com.lifeorganizer.setup.api.dto.GoalDto;
-import com.lifeorganizer.setup.api.dto.SetupParseRequest;
-import com.lifeorganizer.setup.api.dto.SetupParseResponse;
 import com.lifeorganizer.setup.api.dto.SetupPayload;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -14,8 +11,6 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
-
-import org.springframework.web.client.ResourceAccessException;
 
 import java.util.List;
 
@@ -53,84 +48,13 @@ class SetupControllerTest {
     @MockitoBean
     SetupService setupService;
 
-    @MockitoBean
-    SetupExtractionService setupExtractionService;
-
     @Test
-    void extractReturnsTheServicesPreview() throws Exception {
-        when(setupExtractionService.extract("I want to gym"))
-            .thenReturn(new SetupParseResponse(List.of(HEALTH), List.of(GYM), List.of(WORK), List.of("w")));
-
-        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"text\":\"I want to gym\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.goals[0].id").value("health-gym"))
-            .andExpect(jsonPath("$.warnings[0]").value("w"));
-    }
-
-    @Test
-    void extractOfBlankTextIsABadRequest() throws Exception {
-        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"  \"}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.detail").value("text is required"));
-    }
-
-    @Test
-    void extractOfTooLongTextIsABadRequest() throws Exception {
-        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON)
-                .content("{\"text\":\"" + "a".repeat(4001) + "\"}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.detail").value("text must be at most 4000 characters"));
-    }
-
-    @Test
-    void extractMapsAConnectivityFailureTo502() throws Exception {
-        when(setupExtractionService.extract("x")).thenThrow(new ResourceAccessException("down"));
-
-        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"x\"}"))
-            .andExpect(status().isBadGateway())
-            .andExpect(jsonPath("$.title").value("Assistant unavailable"));
-    }
-
-    @Test
-    void extractWithNoKeyConfiguredIs503() throws Exception {
-        when(setupExtractionService.extract("x")).thenThrow(new AiNotConfiguredException("AI features are not configured"));
-
-        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"x\"}"))
-            .andExpect(status().isServiceUnavailable());
-    }
-
-    @Test
-    void parseReturnsTheStructuredSetupAndWarnings() throws Exception {
-        when(setupService.parse(new SetupParseRequest("goals text", "constraints text")))
-            .thenReturn(new SetupParseResponse(List.of(HEALTH), List.of(GYM), List.of(WORK), List.of("a warning")));
-
-        mvc.perform(post("/api/setup/parse")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"goalsText\":\"goals text\",\"constraintsText\":\"constraints text\"}"))
-            .andExpect(status().isOk())
-            .andExpect(jsonPath("$.categories[0].id").value("health"))
-            .andExpect(jsonPath("$.goals[0].id").value("health-gym"))
-            .andExpect(jsonPath("$.goals[0].priority").value(3))
-            .andExpect(jsonPath("$.goals[0].energy").value("MEDIUM"))
-            .andExpect(jsonPath("$.constraints[0].type").value("FIXED_BLOCK"))
-            .andExpect(jsonPath("$.constraints[0].start").value("08:30"))
-            .andExpect(jsonPath("$.constraints[0].days[1]").value("TUESDAY"))
-            .andExpect(jsonPath("$.warnings[0]").value("a warning"));
-    }
-
-    @Test
-    void parseOfBrokenTextIsABadRequest() throws Exception {
-        when(setupService.parse(any(SetupParseRequest.class)))
-            .thenThrow(new InvalidRequestException("Goal 'Orphan' has no parent category"));
-
-        mvc.perform(post("/api/setup/parse")
-                .contentType(MediaType.APPLICATION_JSON)
+    void parseAndExtractAreGone() throws Exception {
+        mvc.perform(post("/api/setup/parse").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"goalsText\":\"x\",\"constraintsText\":\"\"}"))
-            .andExpect(status().isBadRequest())
-            .andExpect(content().contentTypeCompatibleWith("application/problem+json"))
-            .andExpect(jsonPath("$.title").value("Invalid request"))
-            .andExpect(jsonPath("$.detail").value("Goal 'Orphan' has no parent category"));
+            .andExpect(status().isNotFound());
+        mvc.perform(post("/api/setup/extract").contentType(MediaType.APPLICATION_JSON).content("{\"text\":\"x\"}"))
+            .andExpect(status().isNotFound());
     }
 
     @Test
@@ -156,11 +80,11 @@ class SetupControllerTest {
     }
 
     @Test
-    void putIgnoresUnknownPropertiesSoTheParseResponseCanBeSentBackUnchanged() throws Exception {
+    void putIgnoresUnknownProperties() throws Exception {
         when(setupService.load()).thenReturn(PAYLOAD);
-        String parseResponseShape = PAYLOAD_JSON.replaceFirst("\\{", "{\"warnings\":[\"kept?\"],");
+        String withUnknownProperty = PAYLOAD_JSON.replaceFirst("\\{", "{\"warnings\":[\"kept?\"],");
 
-        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(parseResponseShape))
+        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(withUnknownProperty))
             .andExpect(status().isOk());
 
         verify(setupService).save(PAYLOAD);

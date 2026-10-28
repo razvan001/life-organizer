@@ -4,6 +4,9 @@ import com.lifeorganizer.domain.Constraint;
 import com.lifeorganizer.domain.GoalTree;
 import com.lifeorganizer.setup.ConstraintParser;
 import com.lifeorganizer.setup.GoalTreeParser;
+import com.lifeorganizer.setup.api.SetupDtoMapper;
+import com.lifeorganizer.setup.api.dto.SetupPayload;
+import tools.jackson.databind.json.JsonMapper;
 
 import java.time.DayOfWeek;
 import java.time.LocalDate;
@@ -54,5 +57,19 @@ public final class ExampleSetup {
 
     public static List<Constraint> constraints() {
         return new ConstraintParser().parse(CONSTRAINTS_TEXT, tree()).constraints();
+    }
+
+    /** The example as the setup API takes it, as the Setup page would send it. */
+    public static SetupPayload payload() {
+        GoalTree tree = tree();
+        return new SetupPayload(
+            tree.categories().stream().map(SetupDtoMapper::toDto).toList(),
+            tree.goals().stream().map(SetupDtoMapper::toDto).toList(),
+            constraints().stream().map(SetupDtoMapper::toDto).toList());
+    }
+
+    /** {@link #payload()} as the JSON body of {@code PUT /api/setup}. */
+    public static String payloadJson() {
+        return JsonMapper.builder().build().writeValueAsString(payload());
     }
 }

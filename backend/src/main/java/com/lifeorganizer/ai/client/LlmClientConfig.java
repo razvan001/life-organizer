@@ -10,7 +10,7 @@ import org.springframework.web.client.RestClient;
 import java.time.Duration;
 
 /**
- * Builds the LLM clients ({@link AgentLlmClient} and {@link SetupExtractionClient}), but only when an API key
+ * Builds the LLM client ({@link AgentLlmClient}), but only when an API key
  * is configured. No key, no bean - every class that depends on one of them must accept that it might not
  * exist: inject an {@code ObjectProvider}, never the client directly.
  */
@@ -18,13 +18,6 @@ import java.time.Duration;
 public class LlmClientConfig {
 
     private static final String GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions";
-
-    @Bean
-    @ConditionalOnProperty(name = "GROQ_API_KEY")
-    public SetupExtractionClient setupExtractionClient(@Value("${GROQ_API_KEY}") String apiKey,
-                                                       @Value("${app.ai.model:openai/gpt-oss-120b}") String model) {
-        return new GroqExtractionClient(groqRestClient(apiKey), model);
-    }
 
     @Bean
     @ConditionalOnProperty(name = "GROQ_API_KEY")

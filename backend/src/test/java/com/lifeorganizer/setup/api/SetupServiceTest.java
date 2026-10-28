@@ -5,8 +5,6 @@ import com.lifeorganizer.persistence.SetupStore;
 import com.lifeorganizer.setup.api.dto.CategoryDto;
 import com.lifeorganizer.setup.api.dto.ConstraintDto;
 import com.lifeorganizer.setup.api.dto.GoalDto;
-import com.lifeorganizer.setup.api.dto.SetupParseRequest;
-import com.lifeorganizer.setup.api.dto.SetupParseResponse;
 import com.lifeorganizer.setup.api.dto.SetupPayload;
 import com.lifeorganizer.support.ExampleSetup;
 import jakarta.persistence.EntityManager;
@@ -49,88 +47,9 @@ class SetupServiceTest {
         entityManager.clear();
     }
 
-    private SetupParseResponse parseExample() {
-        return service.parse(new SetupParseRequest(ExampleSetup.GOALS_TEXT, ExampleSetup.CONSTRAINTS_TEXT));
-    }
-
-    private static SetupPayload payloadOf(SetupParseResponse parsed) {
-        return new SetupPayload(parsed.categories(), parsed.goals(), parsed.constraints());
-    }
-
-    @Test
-    void parseTurnsTheExampleIntoStructuredData() {
-        SetupParseResponse response = parseExample();
-
-        assertThat(response.categories()).extracting(CategoryDto::name)
-            .containsExactly("Career", "Projects", "Health", "Social", "Finance", "Hobbies");
-        assertThat(response.goals()).hasSize(9);
-        assertThat(response.goals()).contains(new GoalDto("health-gym", "health", "Gym", 3, null, 60, "MEDIUM", "ANY"));
-        assertThat(response.constraints()).hasSize(6);
-        assertThat(response.constraints().get(0)).isEqualTo(new ConstraintDto("FIXED_BLOCK", "Work", "08:30", "17:00",
-            List.of("MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"), null, null, null, null, null, null));
-        assertThat(response.warnings()).isEmpty();
-    }
-
-    @Test
-    void parseReportsUnmatchedConstraintLinesAsWarnings() {
-        SetupParseResponse response = service.parse(new SetupParseRequest(ExampleSetup.GOALS_TEXT, "Meditation: 3x/week\n"));
-
-        assertThat(response.constraints()).isEmpty();
-        assertThat(response.warnings()).containsExactly("No goal found for frequency constraint: Meditation");
-    }
-
-    @Test
-    void parseRejectsAGoalWithoutACategory() {
-        assertThatThrownBy(() -> service.parse(new SetupParseRequest("Goals\n│   ├── Orphan\n", "")))
-            .isInstanceOf(InvalidRequestException.class)
-            .hasMessage("Goal 'Orphan' has no parent category");
-    }
-
-    @Test
-    void parseAcceptsBlankInput() {
-        SetupParseResponse response = service.parse(new SetupParseRequest(null, null));
-
-        assertThat(response.categories()).isEmpty();
-        assertThat(response.goals()).isEmpty();
-        assertThat(response.constraints()).isEmpty();
-        assertThat(response.warnings()).isEmpty();
-    }
-
-    private static final String NO_GOALS_WARNING =
-        "No goals found in the goals text. Write a title line, then indented categories and goals, "
-            + "for example \"- Hobbies\" followed by \"  - Padel\" (two spaces before the second dash), "
-            + "or use the tree layout of the example.";
-
-    @Test
-    void parseWarnsWhenTheGoalsTextHasNoGoals() {
-        SetupParseResponse response = service.parse(new SetupParseRequest("Hobbies - padel", ""));
-
-        assertThat(response.categories()).isEmpty();
-        assertThat(response.goals()).isEmpty();
-        assertThat(response.warnings()).containsExactly(NO_GOALS_WARNING);
-    }
-
-    @Test
-    void parseAcceptsATreeWrittenInTheDashStyleWithoutWarnings() {
-        SetupParseResponse response = service.parse(new SetupParseRequest("- Hobbies\n  - Padel\n", ""));
-
-        assertThat(response.categories()).extracting(CategoryDto::name).containsExactly("Hobbies");
-        assertThat(response.goals()).extracting(GoalDto::name).containsExactly("Padel");
-        assertThat(response.warnings()).isEmpty();
-    }
-
-    @Test
-    void theNoGoalsWarningComesBeforeTheConstraintWarnings() {
-        SetupParseResponse response = service.parse(new SetupParseRequest("Hobbies - padel", "Meditation: 3x/week\n"));
-
-        assertThat(response.warnings()).containsExactly(
-            NO_GOALS_WARNING,
-            "No goal found for frequency constraint: Meditation");
-    }
-
     @Test
     void savingThenLoadingRoundTripsTheParsedSetup() {
-        SetupPayload payload = payloadOf(parseExample());
+        SetupPayload payload = ExampleSetup.payload();
 
         service.save(payload);
         flushAndClear();
@@ -140,7 +59,7 @@ class SetupServiceTest {
 
     @Test
     void savingReplacesThePreviousSetup() {
-        service.save(payloadOf(parseExample()));
+        service.save(ExampleSetup.payload());
         SetupPayload small = new SetupPayload(
             List.of(new CategoryDto("health", "Health")),
             List.of(new GoalDto("health-gym", "health", "Gym", 3, null, 60, "MEDIUM", "ANY")),
@@ -154,7 +73,7 @@ class SetupServiceTest {
 
     @Test
     void editedPrioritiesAreKept() {
-        SetupPayload parsed = payloadOf(parseExample());
+        SetupPayload parsed = ExampleSetup.payload();
         List<GoalDto> edited = new ArrayList<>();
         for (GoalDto goal : parsed.goals()) {
             edited.add(goal.id().equals("health-gym")
@@ -261,7 +180,7 @@ class SetupServiceTest {
 
     @Test
     void aRejectedSaveKeepsThePreviousSetup() {
-        SetupPayload good = payloadOf(parseExample());
+        SetupPayload good = ExampleSetup.payload();
         service.save(good);
         GoalDto bad = new GoalDto("x", "career", "X", 9, null, 60, "MEDIUM", "ANY");
 

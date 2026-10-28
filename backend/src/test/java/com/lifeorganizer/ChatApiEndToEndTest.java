@@ -120,11 +120,8 @@ class ChatApiEndToEndTest {
     }
 
     private void saveExampleSetup() throws Exception {
-        String setupJson = "{\"goalsText\":" + jsonString(ExampleSetup.GOALS_TEXT)
-            + ",\"constraintsText\":" + jsonString(ExampleSetup.CONSTRAINTS_TEXT) + "}";
-        String parsed = mvc.perform(post("/api/setup/parse").contentType(MediaType.APPLICATION_JSON).content(setupJson))
-            .andReturn().getResponse().getContentAsString();
-        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(parsed)).andExpect(status().isOk());
+        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(ExampleSetup.payloadJson()))
+            .andExpect(status().isOk());
     }
 
     private String send(String text) throws Exception {

@@ -10,14 +10,9 @@ import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.domain.GoalTree;
 import com.lifeorganizer.error.InvalidRequestException;
 import com.lifeorganizer.persistence.SetupStore;
-import com.lifeorganizer.setup.ConstraintParseResult;
-import com.lifeorganizer.setup.ConstraintParser;
-import com.lifeorganizer.setup.GoalTreeParser;
 import com.lifeorganizer.setup.api.dto.CategoryDto;
 import com.lifeorganizer.setup.api.dto.ConstraintDto;
 import com.lifeorganizer.setup.api.dto.GoalDto;
-import com.lifeorganizer.setup.api.dto.SetupParseRequest;
-import com.lifeorganizer.setup.api.dto.SetupParseResponse;
 import com.lifeorganizer.setup.api.dto.SetupPayload;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -28,44 +23,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-/** Parses pasted setup text, and validates then stores / loads the whole setup. */
+/** Validates then stores / loads the whole setup. */
 @Service
 public class SetupService {
-
-    static final String NO_GOALS_WARNING =
-        "No goals found in the goals text. Write a title line, then indented categories and goals, "
-            + "for example \"- Hobbies\" followed by \"  - Padel\" (two spaces before the second dash), "
-            + "or use the tree layout of the example.";
 
     private final SetupStore setupStore;
 
     public SetupService(SetupStore setupStore) {
         this.setupStore = setupStore;
-    }
-
-    public SetupParseResponse parse(SetupParseRequest request) {
-        String goalsText = request.goalsText() == null ? "" : request.goalsText();
-        String constraintsText = request.constraintsText() == null ? "" : request.constraintsText();
-
-        GoalTree tree;
-        try {
-            tree = new GoalTreeParser().parse(goalsText);
-        } catch (IllegalArgumentException e) {
-            throw new InvalidRequestException(e.getMessage());
-        }
-        ConstraintParseResult parsed = new ConstraintParser().parse(constraintsText, tree);
-
-        List<String> warnings = new ArrayList<>();
-        if (!goalsText.isBlank() && tree.goals().isEmpty()) {
-            warnings.add(NO_GOALS_WARNING);
-        }
-        warnings.addAll(parsed.warnings());
-
-        return new SetupParseResponse(
-            tree.categories().stream().map(SetupDtoMapper::toDto).toList(),
-            tree.goals().stream().map(SetupDtoMapper::toDto).toList(),
-            parsed.constraints().stream().map(SetupDtoMapper::toDto).toList(),
-            List.copyOf(warnings));
     }
 
     @Transactional(readOnly = true)

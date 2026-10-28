@@ -77,20 +77,9 @@ class ApiEndToEndTest {
         return "\"" + text.replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n") + "\"";
     }
 
-    /** POST /api/setup/parse with the user's example and return the raw response body. */
-    private String parseExample() throws Exception {
-        String body = "{\"goalsText\":" + jsonString(ExampleSetup.GOALS_TEXT)
-            + ",\"constraintsText\":" + jsonString(ExampleSetup.CONSTRAINTS_TEXT) + "}";
-        MvcResult result = mvc.perform(post("/api/setup/parse")
-                .contentType(MediaType.APPLICATION_JSON).characterEncoding("UTF-8").content(body))
-            .andExpect(status().isOk())
-            .andReturn();
-        return result.getResponse().getContentAsString(StandardCharsets.UTF_8);
-    }
-
-    /** Parses the example and saves it exactly as the UI would: by sending the parse response back. */
+    /** Saves the user's example setup exactly as the Setup page would. */
     private void saveExampleSetup() throws Exception {
-        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(parseExample()))
+        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(ExampleSetup.payloadJson()))
             .andExpect(status().isOk());
     }
 
@@ -122,14 +111,8 @@ class ApiEndToEndTest {
     }
 
     @Test
-    void parseSaveAndLoadTheExampleSetup() throws Exception {
-        String parsed = parseExample();
-        assertThat((Integer) JsonPath.read(parsed, "$.categories.length()")).isEqualTo(6);
-        assertThat((Integer) JsonPath.read(parsed, "$.goals.length()")).isEqualTo(9);
-        assertThat((Integer) JsonPath.read(parsed, "$.constraints.length()")).isEqualTo(6);
-        assertThat((List<String>) JsonPath.read(parsed, "$.warnings")).isEmpty();
-
-        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(parsed))
+    void saveAndLoadTheExampleSetup() throws Exception {
+        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(ExampleSetup.payloadJson()))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.categories.length()").value(6));
 
