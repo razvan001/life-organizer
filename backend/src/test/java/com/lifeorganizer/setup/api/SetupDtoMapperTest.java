@@ -2,11 +2,8 @@ package com.lifeorganizer.setup.api;
 
 import com.lifeorganizer.domain.Category;
 import com.lifeorganizer.domain.Constraint;
-import com.lifeorganizer.domain.DurationQuota;
 import com.lifeorganizer.domain.Energy;
-import com.lifeorganizer.domain.EveningQuota;
 import com.lifeorganizer.domain.FixedBlock;
-import com.lifeorganizer.domain.FrequencyQuota;
 import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.domain.PreferredTime;
 import com.lifeorganizer.error.InvalidRequestException;
@@ -34,13 +31,10 @@ class SetupDtoMapperTest {
     }
 
     @Test
-    void everyConstraintTypeRoundTripsThroughItsDto() {
+    void fixedBlocksRoundTripThroughTheirDto() {
         List<Constraint> all = List.of(
             new FixedBlock("Work", LocalTime.of(8, 30), LocalTime.of(17, 0), EnumSet.range(DayOfWeek.MONDAY, DayOfWeek.FRIDAY)),
-            new FixedBlock("Sleep", LocalTime.of(23, 30), LocalTime.of(7, 0), EnumSet.allOf(DayOfWeek.class)),
-            new FrequencyQuota("Gym", 4, 60, "health-gym"),
-            new DurationQuota("Learning", 300, "career"),
-            new EveningQuota("Social", 2, "social"));
+            new FixedBlock("Sleep", LocalTime.of(23, 30), LocalTime.of(7, 0), EnumSet.allOf(DayOfWeek.class)));
 
         for (Constraint constraint : all) {
             assertThat(roundTrip(constraint)).isEqualTo(constraint);
@@ -53,38 +47,19 @@ class SetupDtoMapperTest {
             EnumSet.of(DayOfWeek.WEDNESDAY, DayOfWeek.MONDAY)));
 
         assertThat(dto).isEqualTo(new ConstraintDto("FIXED_BLOCK", "Work", "08:30", "17:00",
-            List.of("MONDAY", "WEDNESDAY"), null, null, null, null, null, null));
+            List.of("MONDAY", "WEDNESDAY")));
     }
 
     @Test
-    void quotaDtosCarryOnlyTheirOwnFields() {
-        assertThat(SetupDtoMapper.toDto(new FrequencyQuota("Gym", 4, 60, "health-gym")))
-            .isEqualTo(new ConstraintDto("FREQUENCY_QUOTA", "Gym", null, null, null, 4, 60, "health-gym", null, null, null));
-        assertThat(SetupDtoMapper.toDto(new DurationQuota("Learning", 300, "career")))
-            .isEqualTo(new ConstraintDto("DURATION_QUOTA", "Learning", null, null, null, null, null, null, 300, "career", null));
-        assertThat(SetupDtoMapper.toDto(new EveningQuota("Social", 2, "social")))
-            .isEqualTo(new ConstraintDto("EVENING_QUOTA", "Social", null, null, null, null, null, null, null, "social", 2));
-    }
-
-    @Test
-    void goalRoundTripsThroughItsDtoIncludingTheDeadline() {
-        Goal goal = new Goal("career-cert", CAREER, "Claude certification", 5, LocalDate.of(2026, 12, 1), 90,
+    void goalRoundTripsThroughItsDtoIncludingItsHours() {
+        Goal goal = new Goal("career-cert", CAREER, "Claude certification", 150, 90,
             Energy.HIGH, PreferredTime.EVENING);
 
         GoalDto dto = SetupDtoMapper.toDto(goal);
 
-        assertThat(dto).isEqualTo(new GoalDto("career-cert", "career", "Claude certification", 5, "2026-12-01", 90,
+        assertThat(dto).isEqualTo(new GoalDto("career-cert", "career", "Claude certification", 150, 90,
             "HIGH", "EVENING"));
         assertThat(SetupDtoMapper.toDomain(dto, Map.of("career", CAREER))).isEqualTo(goal);
-    }
-
-    @Test
-    void aBlankDeadlineMeansNoDeadline() {
-        GoalDto blank = new GoalDto("x", "career", "X", 3, "", 60, "MEDIUM", "ANY");
-        GoalDto spaces = new GoalDto("x", "career", "X", 3, "   ", 60, "MEDIUM", "ANY");
-
-        assertThat(SetupDtoMapper.toDomain(blank, Map.of("career", CAREER)).deadline()).isNull();
-        assertThat(SetupDtoMapper.toDomain(spaces, Map.of("career", CAREER)).deadline()).isNull();
     }
 
     @Test
@@ -97,14 +72,14 @@ class SetupDtoMapperTest {
             .isInstanceOf(InvalidRequestException.class).hasMessage("category id must be at most 255 characters");
         assertThatThrownBy(() -> SetupDtoMapper.toDomain(new CategoryDto("career", tooLong)))
             .isInstanceOf(InvalidRequestException.class).hasMessage("category name must be at most 255 characters");
-        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto(tooLong, "career", "X", 3, null, 60, "MEDIUM", "ANY"), categories))
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto(tooLong, "career", "X", 120, 60, "MEDIUM", "ANY"), categories))
             .isInstanceOf(InvalidRequestException.class).hasMessage("goal id must be at most 255 characters");
-        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto("x", "career", tooLong, 3, null, 60, "MEDIUM", "ANY"), categories))
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto("x", "career", tooLong, 120, 60, "MEDIUM", "ANY"), categories))
             .isInstanceOf(InvalidRequestException.class).hasMessage("goal name must be at most 255 characters");
-        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto("x", tooLong, "X", 3, null, 60, "MEDIUM", "ANY"), categories))
+        assertThatThrownBy(() -> SetupDtoMapper.toDomain(new GoalDto("x", tooLong, "X", 120, 60, "MEDIUM", "ANY"), categories))
             .isInstanceOf(InvalidRequestException.class).hasMessage("goal categoryId must be at most 255 characters");
         assertThatThrownBy(() -> SetupDtoMapper.toDomain(
-            new ConstraintDto("EVENING_QUOTA", tooLong, null, null, null, null, null, null, null, "career", 2)))
+            new ConstraintDto("FIXED_BLOCK", tooLong, "08:30", "17:00", List.of("MONDAY"))))
             .isInstanceOf(InvalidRequestException.class).hasMessage("constraint label must be at most 255 characters");
 
         // exactly 255 is still fine
@@ -113,7 +88,7 @@ class SetupDtoMapperTest {
 
     @Test
     void unknownConstraintTypeIsRejected() {
-        ConstraintDto dto = new ConstraintDto("WAT", "X", null, null, null, null, null, null, null, null, null);
+        ConstraintDto dto = new ConstraintDto("WAT", "X", null, null, null);
 
         assertThatThrownBy(() -> SetupDtoMapper.toDomain(dto))
             .isInstanceOf(InvalidRequestException.class)
@@ -121,20 +96,9 @@ class SetupDtoMapperTest {
     }
 
     @Test
-    void aMissingQuotaFieldNamesTheField() {
-        ConstraintDto dto = new ConstraintDto("FREQUENCY_QUOTA", "Gym", null, null, null, null, 60, "health-gym", null, null, null);
-
-        assertThatThrownBy(() -> SetupDtoMapper.toDomain(dto))
-            .isInstanceOf(InvalidRequestException.class)
-            .hasMessage("timesPerWeek is required");
-    }
-
-    @Test
     void aBadTimeAndABadDayNameAreRejected() {
-        ConstraintDto badTime = new ConstraintDto("FIXED_BLOCK", "Work", "8:30", "17:00", List.of("MONDAY"),
-            null, null, null, null, null, null);
-        ConstraintDto badDay = new ConstraintDto("FIXED_BLOCK", "Work", "08:30", "17:00", List.of("FUNDAY"),
-            null, null, null, null, null, null);
+        ConstraintDto badTime = new ConstraintDto("FIXED_BLOCK", "Work", "8:30", "17:00", List.of("MONDAY"));
+        ConstraintDto badDay = new ConstraintDto("FIXED_BLOCK", "Work", "08:30", "17:00", List.of("FUNDAY"));
 
         assertThatThrownBy(() -> SetupDtoMapper.toDomain(badTime))
             .isInstanceOf(InvalidRequestException.class)
@@ -146,7 +110,7 @@ class SetupDtoMapperTest {
 
     @Test
     void aGoalWithAnUnknownCategoryIsRejected() {
-        GoalDto dto = new GoalDto("x", "nope", "X", 3, null, 60, "MEDIUM", "ANY");
+        GoalDto dto = new GoalDto("x", "nope", "X", 120, 60, "MEDIUM", "ANY");
 
         assertThatThrownBy(() -> SetupDtoMapper.toDomain(dto, Map.of("career", CAREER)))
             .isInstanceOf(InvalidRequestException.class)
@@ -155,16 +119,16 @@ class SetupDtoMapperTest {
 
     @Test
     void aDomainRuleViolationBecomesAReadableError() {
-        GoalDto dto = new GoalDto("x", "career", "X", 9, null, 60, "MEDIUM", "ANY");
+        GoalDto dto = new GoalDto("x", "career", "X", 120, 0, "MEDIUM", "ANY");
 
         assertThatThrownBy(() -> SetupDtoMapper.toDomain(dto, Map.of("career", CAREER)))
             .isInstanceOf(InvalidRequestException.class)
-            .hasMessage("goal 'x': priority must be between 1 and 5, was 9");
+            .hasMessage("goal 'x': defaultBlockMinutes must be positive");
     }
 
     @Test
     void aBadEnergyNamesTheAllowedValues() {
-        GoalDto dto = new GoalDto("x", "career", "X", 3, null, 60, "SUPER", "ANY");
+        GoalDto dto = new GoalDto("x", "career", "X", 120, 60, "SUPER", "ANY");
 
         assertThatThrownBy(() -> SetupDtoMapper.toDomain(dto, Map.of("career", CAREER)))
             .isInstanceOf(InvalidRequestException.class)

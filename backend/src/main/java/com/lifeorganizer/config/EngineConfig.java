@@ -2,7 +2,6 @@ package com.lifeorganizer.config;
 
 import com.lifeorganizer.domain.EngineSettings;
 import com.lifeorganizer.engine.DayScheduler;
-import com.lifeorganizer.engine.GoalWeighting;
 import com.lifeorganizer.engine.PostponePolicy;
 import com.lifeorganizer.engine.Replanner;
 import com.lifeorganizer.engine.WeekAllocator;
@@ -26,13 +25,8 @@ public class EngineConfig {
     }
 
     @Bean
-    public GoalWeighting goalWeighting() {
-        return new GoalWeighting();
-    }
-
-    @Bean
-    public WeekAllocator weekAllocator(GoalWeighting goalWeighting, EngineSettings settings) {
-        return new WeekAllocator(goalWeighting, settings);
+    public WeekAllocator weekAllocator() {
+        return new WeekAllocator();
     }
 
     @Bean

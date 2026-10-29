@@ -62,7 +62,7 @@ class SetupServiceTest {
         service.save(ExampleSetup.payload());
         SetupPayload small = new SetupPayload(
             List.of(new CategoryDto("health", "Health")),
-            List.of(new GoalDto("health-gym", "health", "Gym", 3, null, 60, "MEDIUM", "ANY")),
+            List.of(new GoalDto("health-gym", "health", "Gym", 120, 60, "MEDIUM", "ANY")),
             List.of());
 
         service.save(small);
@@ -72,12 +72,12 @@ class SetupServiceTest {
     }
 
     @Test
-    void editedPrioritiesAreKept() {
+    void editedHoursAreKept() {
         SetupPayload parsed = ExampleSetup.payload();
         List<GoalDto> edited = new ArrayList<>();
         for (GoalDto goal : parsed.goals()) {
             edited.add(goal.id().equals("health-gym")
-                ? new GoalDto(goal.id(), goal.categoryId(), goal.name(), 5, goal.deadline(),
+                ? new GoalDto(goal.id(), goal.categoryId(), goal.name(), 330,
                     goal.defaultBlockMinutes(), goal.energy(), goal.preferredTime())
                 : goal);
         }
@@ -86,7 +86,7 @@ class SetupServiceTest {
         flushAndClear();
 
         assertThat(service.load().goals()).filteredOn(g -> g.id().equals("health-gym"))
-            .extracting(GoalDto::priority).containsExactly(5);
+            .extracting(GoalDto::minutesPerWeek).containsExactly(330);
     }
 
     @Test
@@ -99,7 +99,7 @@ class SetupServiceTest {
 
     @Test
     void anOverlongGoalNameIsRejectedAsABadRequest() {
-        GoalDto gym = new GoalDto("health-gym", "health", "G".repeat(256), 3, null, 60, "MEDIUM", "ANY");
+        GoalDto gym = new GoalDto("health-gym", "health", "G".repeat(256), 120, 60, "MEDIUM", "ANY");
         SetupPayload payload = new SetupPayload(List.of(new CategoryDto("health", "Health")), List.of(gym), List.of());
 
         assertThatThrownBy(() -> service.save(payload))
@@ -109,8 +109,7 @@ class SetupServiceTest {
 
     @Test
     void anOverlongConstraintLabelIsRejectedAsABadRequest() {
-        ConstraintDto social = new ConstraintDto("EVENING_QUOTA", "S".repeat(256), null, null, null,
-            null, null, null, null, "health", 2);
+        ConstraintDto social = new ConstraintDto("FIXED_BLOCK", "S".repeat(256), "08:30", "17:00", List.of("MONDAY"));
         SetupPayload payload = new SetupPayload(List.of(new CategoryDto("health", "Health")), List.of(), List.of(social));
 
         assertThatThrownBy(() -> service.save(payload))
@@ -121,7 +120,7 @@ class SetupServiceTest {
     @Test
     void nullEntriesInTheListsAreRejectedAsBadRequests() {
         CategoryDto health = new CategoryDto("health", "Health");
-        GoalDto gym = new GoalDto("health-gym", "health", "Gym", 3, null, 60, "MEDIUM", "ANY");
+        GoalDto gym = new GoalDto("health-gym", "health", "Gym", 120, 60, "MEDIUM", "ANY");
 
         assertThatThrownBy(() -> service.save(new SetupPayload(Arrays.asList(health, null), List.of(), List.of())))
             .isInstanceOf(InvalidRequestException.class)
@@ -136,7 +135,7 @@ class SetupServiceTest {
 
     @Test
     void aDuplicateGoalIdIsRejected() {
-        GoalDto gym = new GoalDto("health-gym", "health", "Gym", 3, null, 60, "MEDIUM", "ANY");
+        GoalDto gym = new GoalDto("health-gym", "health", "Gym", 120, 60, "MEDIUM", "ANY");
         SetupPayload payload = new SetupPayload(List.of(new CategoryDto("health", "Health")), List.of(gym, gym), List.of());
 
         assertThatThrownBy(() -> service.save(payload))
@@ -156,7 +155,7 @@ class SetupServiceTest {
 
     @Test
     void aGoalWithAnUnknownCategoryIsRejected() {
-        GoalDto gym = new GoalDto("health-gym", "nope", "Gym", 3, null, 60, "MEDIUM", "ANY");
+        GoalDto gym = new GoalDto("health-gym", "nope", "Gym", 120, 60, "MEDIUM", "ANY");
         SetupPayload payload = new SetupPayload(List.of(new CategoryDto("health", "Health")), List.of(gym), List.of());
 
         assertThatThrownBy(() -> service.save(payload))
@@ -164,25 +163,42 @@ class SetupServiceTest {
             .hasMessage("Goal 'health-gym' refers to unknown category 'nope'");
     }
 
-    @Test
-    void aQuotaThatPointsAtAnUnknownGoalOrCategoryIsRejected() {
-        CategoryDto health = new CategoryDto("health", "Health");
-        ConstraintDto frequency = new ConstraintDto("FREQUENCY_QUOTA", "Gym", null, null, null, 4, 60, "nope", null, null, null);
-        ConstraintDto duration = new ConstraintDto("DURATION_QUOTA", "Learning", null, null, null, null, null, null, 300, "nope", null);
+    private SetupPayload gymWithMinutes(int minutesPerWeek) {
+        return new SetupPayload(List.of(new CategoryDto("health", "Health")),
+            List.of(new GoalDto("health-gym", "health", "Gym", minutesPerWeek, 60, "MEDIUM", "ANY")), List.of());
+    }
 
-        assertThatThrownBy(() -> service.save(new SetupPayload(List.of(health), List.of(), List.of(frequency))))
+    @Test
+    void rejectsHoursOffTheHalfHourGrid() {
+        assertThatThrownBy(() -> service.save(gymWithMinutes(78)))
             .isInstanceOf(InvalidRequestException.class)
-            .hasMessage("Constraint 'Gym' refers to unknown goal 'nope'");
-        assertThatThrownBy(() -> service.save(new SetupPayload(List.of(health), List.of(), List.of(duration))))
-            .isInstanceOf(InvalidRequestException.class)
-            .hasMessage("Constraint 'Learning' refers to unknown category 'nope'");
+            .hasMessage("Hours per week for 'Gym' must be between 0 and 168, in steps of half an hour");
+    }
+
+    @Test
+    void rejectsMoreThan168Hours() {
+        assertThatThrownBy(() -> service.save(gymWithMinutes(10110))).isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    void rejectsNegativeHours() {
+        assertThatThrownBy(() -> service.save(gymWithMinutes(-30))).isInstanceOf(InvalidRequestException.class);
+    }
+
+    @Test
+    void acceptsZeroAndAFullWeek() {
+        service.save(gymWithMinutes(0));
+        service.save(gymWithMinutes(10080));
+        flushAndClear();
+
+        assertThat(service.load().goals()).extracting(GoalDto::minutesPerWeek).containsExactly(10080);
     }
 
     @Test
     void aRejectedSaveKeepsThePreviousSetup() {
         SetupPayload good = ExampleSetup.payload();
         service.save(good);
-        GoalDto bad = new GoalDto("x", "career", "X", 9, null, 60, "MEDIUM", "ANY");
+        GoalDto bad = new GoalDto("x", "career", "X", 45, 60, "MEDIUM", "ANY");
 
         assertThatThrownBy(() -> service.save(new SetupPayload(good.categories(), List.of(bad), List.of())))
             .isInstanceOf(InvalidRequestException.class);

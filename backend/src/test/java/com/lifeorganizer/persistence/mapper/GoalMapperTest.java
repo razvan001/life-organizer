@@ -27,13 +27,13 @@ class GoalMapperTest {
     }
 
     @Test
-    void goalWithADeadlineRoundTrips() {
+    void goalWithHoursRoundTrips() {
         Category career = Category.of("Career");
-        Goal goal = new Goal("career-claude-certification", career, "Claude certification", 5,
-            LocalDate.of(2026, 12, 1), 90, Energy.HIGH, PreferredTime.EVENING);
+        Goal goal = new Goal("career-claude-certification", career, "Claude certification", 150, 90, Energy.HIGH, PreferredTime.EVENING);
 
         GoalEntity entity = GoalMapper.toEntity(goal, GoalMapper.toEntity(career, 0), 7);
 
+        assertThat(entity.getMinutesPerWeek()).isEqualTo(150);
         assertThat(entity.getEnergy()).isEqualTo("HIGH");
         assertThat(entity.getPreferredTime()).isEqualTo("EVENING");
         assertThat(entity.getPosition()).isEqualTo(7);
@@ -41,13 +41,13 @@ class GoalMapperTest {
     }
 
     @Test
-    void goalWithoutADeadlineRoundTrips() {
+    void goalWithoutHoursRoundTrips() {
         Category health = Category.of("Health");
         Goal goal = Goal.withDefaults("health-gym", health, "Gym");
 
         GoalEntity entity = GoalMapper.toEntity(goal, GoalMapper.toEntity(health, 0), 0);
 
-        assertThat(entity.getDeadline()).isNull();
+        assertThat(entity.getMinutesPerWeek()).isZero();
         assertThat(GoalMapper.toDomain(entity)).isEqualTo(goal);
     }
 }

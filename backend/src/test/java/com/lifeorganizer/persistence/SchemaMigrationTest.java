@@ -57,11 +57,11 @@ class SchemaMigrationTest {
     }
 
     @Test
-    void constraintTableReferencesGoalAndCategory() {
+    void fixedBlocksReferenceNothing() {
         Integer foreignKeys = jdbc.queryForObject(
             "select count(*) from information_schema.table_constraints where table_name = 'plan_constraint' and constraint_type = 'FOREIGN KEY'",
             Integer.class);
 
-        assertThat(foreignKeys).isEqualTo(2);
+        assertThat(foreignKeys).isZero();
     }
 }

@@ -26,8 +26,8 @@ public class ListGoalsTool implements AgentTool {
 
     @Override
     public String description() {
-        return "The user's goals with category, priority (1 least to 5 most important), deadline, preferred time of "
-            + "day, energy a session needs, and the usual session length in minutes.";
+        return "The user's goals with category, hours per week, preferred time of day, energy a session needs, and "
+            + "the usual session length in minutes.";
     }
 
     @Override
@@ -49,8 +49,7 @@ public class ListGoalsTool implements AgentTool {
         json.put("id", goal.id());
         json.put("name", goal.name());
         json.put("category", goal.category().name());
-        json.put("priority", goal.priority());
-        json.put("deadline", goal.deadline() == null ? null : goal.deadline().toString());
+        json.put("hoursPerWeek", goal.minutesPerWeek() / 60.0);
         json.put("preferredTime", goal.preferredTime().name());
         json.put("energy", goal.energy().name());
         json.put("sessionMinutes", goal.defaultBlockMinutes());

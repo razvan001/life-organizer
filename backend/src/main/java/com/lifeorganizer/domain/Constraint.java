@@ -1,7 +1,7 @@
 package com.lifeorganizer.domain;
 
 public sealed interface Constraint
-    permits FixedBlock, FrequencyQuota, DurationQuota, EveningQuota {
+    permits FixedBlock {
 
     String label();
 }

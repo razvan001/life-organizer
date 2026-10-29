@@ -40,7 +40,7 @@ public class WeekProgressTool implements AgentTool {
     @Override
     public String description() {
         return "This week from Monday to today, per goal: minutes planned and done, and how many sessions were "
-            + "cancelled or postponed, with each goal's id, priority and deadline. Use it for a weekly review.";
+            + "cancelled or postponed, with each goal's id and hours per week. Use it for a weekly review.";
     }
 
     @Override
@@ -89,9 +89,13 @@ public class WeekProgressTool implements AgentTool {
         long done = sessions.stream().filter(b -> b.status() == BlockStatus.DONE).mapToLong(WeekProgressTool::minutes).sum();
         long cancelled = sessions.stream().filter(b -> b.status() == BlockStatus.CANCELLED).count();
         long postponed = sessions.stream().filter(b -> b.status() == BlockStatus.POSTPONED).count();
-        return goal.name() + " (id " + goal.id() + ", priority " + goal.priority() + ", deadline "
-            + (goal.deadline() == null ? "none" : goal.deadline().toString()) + "): planned " + planned
+        return goal.name() + " (id " + goal.id() + ", " + hours(goal.minutesPerWeek()) + " h per week): planned " + planned
             + " min, done " + done + " min, " + cancelled + " cancelled, " + postponed + " postponed";
+    }
+
+    /** "2" for 120 minutes, "1.5" for 90. */
+    static String hours(int minutes) {
+        return minutes % 60 == 0 ? String.valueOf(minutes / 60) : String.valueOf(minutes / 60.0);
     }
 
     private static long minutes(Block block) {

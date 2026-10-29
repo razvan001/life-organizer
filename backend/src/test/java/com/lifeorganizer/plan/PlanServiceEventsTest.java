@@ -148,19 +148,19 @@ class PlanServiceEventsTest {
         AppliedEvent applied = planService.applyEvent(new PostponeBlock(firstMoveId, "still tired"), MON);
         flushAndClear();
 
-        assertThat(applied.changes()).containsExactly("Moved Claude certification 21:00 -> 2026-09-15 19:00");
+        assertThat(applied.changes()).containsExactly("Moved Claude certification 21:00 -> 2026-09-15 21:00");
 
         DayPlan monday = planStore.findDay(MON).orElseThrow();
         assertThat(block(monday, firstMoveId).status()).isEqualTo(BlockStatus.POSTPONED);
 
         DayPlan tuesday = planStore.findDay(TUE).orElseThrow();
         Block secondMove = block(tuesday, firstMoveId + "-p2");
-        assertThat(secondMove.start()).isEqualTo(LocalTime.of(19, 0));
-        assertThat(secondMove.end()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(secondMove.start()).isEqualTo(LocalTime.of(21, 0));
+        assertThat(secondMove.end()).isEqualTo(LocalTime.of(22, 0));
         assertThat(secondMove.postponeCount()).isEqualTo(2);
         assertThat(secondMove.flagged()).isFalse();
-        assertThat(tuesday.blocks()).noneMatch(b -> b.id().equals("free-2026-09-15-19:00"));
-        assertThat(block(tuesday, "free-2026-09-15-19:00-rest").start()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(tuesday.blocks()).noneMatch(b -> b.id().equals("free-2026-09-15-21:00"));
+        assertThat(block(tuesday, "free-2026-09-15-21:00-rest").start()).isEqualTo(LocalTime.of(22, 0));
     }
 
     @Test
@@ -173,10 +173,11 @@ class PlanServiceEventsTest {
         planService.applyEvent(new PostponeBlock(certId + "-p1-p2", "3"), MON);
         flushAndClear();
 
-        Block third = block(planStore.findDay(TUE).orElseThrow(), certId + "-p1-p2-p3");
+        // Tuesday's evening is full after the second move, so the third one goes to Wednesday's free hour
+        Block third = block(planStore.findDay(TUE.plusDays(1)).orElseThrow(), certId + "-p1-p2-p3");
         assertThat(third.postponeCount()).isEqualTo(3);
         assertThat(third.flagged()).isTrue();
-        assertThat(third.start()).isEqualTo(LocalTime.of(20, 0));
+        assertThat(third.start()).isEqualTo(LocalTime.of(21, 0));
     }
 
     @Test
@@ -259,11 +260,8 @@ class PlanServiceEventsTest {
         DayPlan tuesday = planStore.findDay(TUE).orElseThrow();
         Block padel = block(tuesday, "adhoc-2026-09-15-21:00");
         assertThat(padel.kind()).isEqualTo(BlockKind.ADHOC);
-        // Tuesday's free block 19:00-22:30 lost the 21:00-22:30 it overlaps; 19:00-21:00 is left.
-        assertThat(tuesday.blocks()).noneMatch(b -> b.id().equals("free-2026-09-15-19:00"));
-        Block before = block(tuesday, "free-2026-09-15-19:00-before");
-        assertThat(before.start()).isEqualTo(LocalTime.of(19, 0));
-        assertThat(before.end()).isEqualTo(LocalTime.of(21, 0));
+        // Padel takes all of Tuesday's free block 21:00-22:30; nothing of it is left.
+        assertThat(tuesday.blocks()).noneMatch(b -> b.id().startsWith("free-2026-09-15-21:00"));
     }
 
     @Test

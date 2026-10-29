@@ -1,11 +1,15 @@
 package com.lifeorganizer.persistence;
 
 import com.lifeorganizer.domain.Category;
+import java.util.EnumSet;
+import java.time.LocalTime;
+import java.time.DayOfWeek;
+import com.lifeorganizer.domain.PreferredTime;
+import com.lifeorganizer.domain.FixedBlock;
+import com.lifeorganizer.domain.Energy;
 import com.lifeorganizer.domain.Constraint;
 import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.domain.GoalTree;
-import com.lifeorganizer.setup.ConstraintParser;
-import com.lifeorganizer.setup.GoalTreeParser;
 import com.lifeorganizer.support.ExampleSetup;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -71,8 +75,11 @@ class SetupStoreTest {
     void replacingOverwritesThePreviousSetupCompletely() {
         store.replace(ExampleSetup.tree(), ExampleSetup.constraints());
 
-        GoalTree smaller = new GoalTreeParser().parse("Goals\n├── Health\n│   └── Gym\n");
-        List<Constraint> oneConstraint = new ConstraintParser().parse("Gym: 3x/week\n", smaller).constraints();
+        Category health = Category.of("Health");
+        GoalTree smaller = new GoalTree(List.of(health),
+            List.of(new Goal("health-gym", health, "Gym", 180, 60, Energy.MEDIUM, PreferredTime.ANY)));
+        List<Constraint> oneConstraint = List.of(new FixedBlock("Work", LocalTime.of(9, 0), LocalTime.of(17, 0),
+            EnumSet.of(DayOfWeek.MONDAY)));
         store.replace(smaller, oneConstraint);
         flushAndClear();
 

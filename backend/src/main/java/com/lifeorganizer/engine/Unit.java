@@ -7,10 +7,8 @@ import java.util.Objects;
 
 /**
  * A chunk of a goal's weekly time to be placed on a specific day. `anchorStart`
- * is null for most units (DayScheduler picks the best-fitting free gap), but is
- * set to a fixed clock time for evening-quota units (e.g. Social always anchors
- * to EngineSettings.eveningAnchor()) so they land at a conventional hour rather
- * than immediately filling whatever gap is free first.
+ * is an optional fixed clock time the DayScheduler tries first; the WeekAllocator
+ * leaves it null, so the scheduler picks the best-fitting free gap.
  */
 public record Unit(String id, Goal goal, int minutes, PreferredTime preferredTime, LocalTime anchorStart) {
 

@@ -113,8 +113,8 @@ public class PlanStore {
     }
 
     /**
-     * Two units can legitimately produce the same block id (for example two duration quotas that
-     * land one goal on the same day). Keep every block by suffixing later duplicates with ~2, ~3, ...
+     * Two units can legitimately produce the same block id (for example two units of one goal
+     * on the same day). Keep every block by suffixing later duplicates with ~2, ~3, ...
      */
     private static List<Block> withUniqueIds(List<Block> planned) {
         Set<String> seen = new HashSet<>();

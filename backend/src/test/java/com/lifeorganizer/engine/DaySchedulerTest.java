@@ -25,7 +25,7 @@ class DaySchedulerTest {
         Category social = Category.of("Social");
 
         Goal gym = Goal.withDefaults("health-gym", health, "Gym");
-        Goal cert = new Goal("career-cert", career, "Claude certification", 5, null, 60, Energy.MEDIUM, PreferredTime.EVENING);
+        Goal cert = new Goal("career-cert", career, "Claude certification", 0, 60, Energy.MEDIUM, PreferredTime.EVENING);
         Goal socialGoal = Goal.withDefaults("social-dating", social, "Dating / events");
 
         List<Constraint> constraints = List.of(

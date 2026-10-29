@@ -47,7 +47,7 @@ public class AgentRunner {
         You are the planning assistant inside a personal day planner. Today is %s (%s).
         You help the user adjust TODAY's plan and review their week through conversation.
         A "Current data" message before the user's message already holds today's plan (blocks with their ids) and
-        this week so far per goal (id, priority, deadline, minutes planned and done, sessions cancelled and
+        this week so far per goal (id, hours per week, minutes planned and done, sessions cancelled and
         postponed). Use it directly; there is no tool for it. Tools:
         - get_week_overview: the rest of this week, for context only.
         - list_goals: more detail on the goals (category, preferred time, energy, session length).

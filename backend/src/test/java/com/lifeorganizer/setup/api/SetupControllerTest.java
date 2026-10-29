@@ -29,14 +29,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class SetupControllerTest {
 
     private static final CategoryDto HEALTH = new CategoryDto("health", "Health");
-    private static final GoalDto GYM = new GoalDto("health-gym", "health", "Gym", 3, null, 60, "MEDIUM", "ANY");
+    private static final GoalDto GYM = new GoalDto("health-gym", "health", "Gym", 120, 60, "MEDIUM", "ANY");
     private static final ConstraintDto WORK = new ConstraintDto("FIXED_BLOCK", "Work", "08:30", "17:00",
-        List.of("MONDAY", "TUESDAY"), null, null, null, null, null, null);
+        List.of("MONDAY", "TUESDAY"));
     private static final SetupPayload PAYLOAD = new SetupPayload(List.of(HEALTH), List.of(GYM), List.of(WORK));
 
     private static final String PAYLOAD_JSON = """
         {"categories":[{"id":"health","name":"Health"}],
-         "goals":[{"id":"health-gym","categoryId":"health","name":"Gym","priority":3,"deadline":null,
+         "goals":[{"id":"health-gym","categoryId":"health","name":"Gym","minutesPerWeek":120,
                    "defaultBlockMinutes":60,"energy":"MEDIUM","preferredTime":"ANY"}],
          "constraints":[{"type":"FIXED_BLOCK","label":"Work","start":"08:30","end":"17:00",
                          "days":["MONDAY","TUESDAY"]}]}

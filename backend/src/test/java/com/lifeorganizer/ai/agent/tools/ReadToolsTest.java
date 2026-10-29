@@ -104,14 +104,13 @@ class ReadToolsTest {
     void listGoalsDescribesEachGoal() {
         SetupStore setup = mock(SetupStore.class);
         Category health = new Category("health", "Health");
-        when(setup.loadTree()).thenReturn(new GoalTree(List.of(health), List.of(new Goal("health-gym", health, "Gym", 4,
-            null, 60, Energy.HIGH, PreferredTime.MORNING))));
+        when(setup.loadTree()).thenReturn(new GoalTree(List.of(health), List.of(new Goal("health-gym", health, "Gym", 150, 60, Energy.HIGH, PreferredTime.MORNING))));
 
         JsonNode goal = ToolJson.MAPPER.readTree(new ListGoalsTool(setup).execute(args("{}"), CONTEXT)).get(0);
 
         assertThat(goal.path("id").asString()).isEqualTo("health-gym");
         assertThat(goal.path("category").asString()).isEqualTo("Health");
-        assertThat(goal.path("priority").asInt()).isEqualTo(4);
+        assertThat(goal.path("hoursPerWeek").asDouble()).isEqualTo(2.5);
         assertThat(goal.path("preferredTime").asString()).isEqualTo("MORNING");
     }
 

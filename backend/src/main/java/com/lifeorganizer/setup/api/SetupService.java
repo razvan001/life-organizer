@@ -2,10 +2,6 @@ package com.lifeorganizer.setup.api;
 
 import com.lifeorganizer.domain.Category;
 import com.lifeorganizer.domain.Constraint;
-import com.lifeorganizer.domain.DurationQuota;
-import com.lifeorganizer.domain.EveningQuota;
-import com.lifeorganizer.domain.FixedBlock;
-import com.lifeorganizer.domain.FrequencyQuota;
 import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.domain.GoalTree;
 import com.lifeorganizer.error.InvalidRequestException;
@@ -26,6 +22,9 @@ import java.util.Objects;
 /** Validates then stores / loads the whole setup. */
 @Service
 public class SetupService {
+
+    static final int MAX_MINUTES_PER_WEEK = 7 * 24 * 60;
+    private static final int GRID_MINUTES = 30;
 
     private final SetupStore setupStore;
 
@@ -56,6 +55,7 @@ public class SetupService {
         Map<String, Goal> goalsById = new LinkedHashMap<>();
         for (GoalDto dto : entries(payload.goals(), "goals")) {
             Goal goal = SetupDtoMapper.toDomain(dto, categoriesById);
+            requireHours(goal);
             if (goalsById.put(goal.id(), goal) != null) {
                 throw new InvalidRequestException("Duplicate goal id '" + goal.id() + "'");
             }
@@ -63,9 +63,7 @@ public class SetupService {
 
         List<Constraint> constraints = new ArrayList<>();
         for (ConstraintDto dto : entries(payload.constraints(), "constraints")) {
-            Constraint constraint = SetupDtoMapper.toDomain(dto);
-            verifyReferences(constraint, categoriesById, goalsById);
-            constraints.add(constraint);
+            constraints.add(SetupDtoMapper.toDomain(dto));
         }
 
         setupStore.replace(
@@ -73,26 +71,12 @@ public class SetupService {
             constraints);
     }
 
-    private static void verifyReferences(Constraint constraint, Map<String, Category> categoriesById,
-                                         Map<String, Goal> goalsById) {
-        switch (constraint) {
-            case FrequencyQuota q -> {
-                if (!goalsById.containsKey(q.goalId())) {
-                    throw new InvalidRequestException(
-                        "Constraint '" + q.label() + "' refers to unknown goal '" + q.goalId() + "'");
-                }
-            }
-            case DurationQuota q -> requireCategory(q.label(), q.categoryId(), categoriesById);
-            case EveningQuota q -> requireCategory(q.label(), q.categoryId(), categoriesById);
-            case FixedBlock f -> {
-            }
-        }
-    }
-
-    private static void requireCategory(String label, String categoryId, Map<String, Category> categoriesById) {
-        if (!categoriesById.containsKey(categoryId)) {
-            throw new InvalidRequestException(
-                "Constraint '" + label + "' refers to unknown category '" + categoryId + "'");
+    /** Whole half hours up to a full week: the engine plans on a 30-minute grid. */
+    private static void requireHours(Goal goal) {
+        int minutes = goal.minutesPerWeek();
+        if (minutes < 0 || minutes > MAX_MINUTES_PER_WEEK || minutes % GRID_MINUTES != 0) {
+            throw new InvalidRequestException("Hours per week for '" + goal.name()
+                + "' must be between 0 and 168, in steps of half an hour");
         }
     }
 

@@ -8,7 +8,6 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
-import java.time.LocalDate;
 
 @Entity
 @Table(name = "goal")
@@ -23,9 +22,8 @@ public class GoalEntity {
 
     private String name;
 
-    private int priority;
-
-    private LocalDate deadline;
+    @Column(name = "minutes_per_week")
+    private int minutesPerWeek;
 
     @Column(name = "default_block_minutes")
     private int defaultBlockMinutes;
@@ -40,13 +38,12 @@ public class GoalEntity {
     protected GoalEntity() {
     }
 
-    public GoalEntity(String id, CategoryEntity category, String name, int priority, LocalDate deadline,
-                      int defaultBlockMinutes, String energy, String preferredTime, int position) {
+    public GoalEntity(String id, CategoryEntity category, String name, int minutesPerWeek, int defaultBlockMinutes,
+                      String energy, String preferredTime, int position) {
         this.id = id;
         this.category = category;
         this.name = name;
-        this.priority = priority;
-        this.deadline = deadline;
+        this.minutesPerWeek = minutesPerWeek;
         this.defaultBlockMinutes = defaultBlockMinutes;
         this.energy = energy;
         this.preferredTime = preferredTime;
@@ -65,12 +62,8 @@ public class GoalEntity {
         return name;
     }
 
-    public int getPriority() {
-        return priority;
-    }
-
-    public LocalDate getDeadline() {
-        return deadline;
+    public int getMinutesPerWeek() {
+        return minutesPerWeek;
     }
 
     public int getDefaultBlockMinutes() {

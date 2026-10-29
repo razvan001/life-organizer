@@ -21,13 +21,12 @@ public final class GoalMapper {
     }
 
     public static GoalEntity toEntity(Goal goal, CategoryEntity category, int position) {
-        return new GoalEntity(goal.id(), category, goal.name(), goal.priority(), goal.deadline(),
-            goal.defaultBlockMinutes(), goal.energy().name(), goal.preferredTime().name(), position);
+        return new GoalEntity(goal.id(), category, goal.name(), goal.minutesPerWeek(), goal.defaultBlockMinutes(), goal.energy().name(), goal.preferredTime().name(), position);
     }
 
     public static Goal toDomain(GoalEntity entity) {
-        return new Goal(entity.getId(), toDomain(entity.getCategory()), entity.getName(), entity.getPriority(),
-            entity.getDeadline(), entity.getDefaultBlockMinutes(), Energy.valueOf(entity.getEnergy()),
+        return new Goal(entity.getId(), toDomain(entity.getCategory()), entity.getName(), entity.getMinutesPerWeek(),
+            entity.getDefaultBlockMinutes(), Energy.valueOf(entity.getEnergy()),
             PreferredTime.valueOf(entity.getPreferredTime()));
     }
 }

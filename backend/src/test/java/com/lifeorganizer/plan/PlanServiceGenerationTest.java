@@ -2,6 +2,14 @@ package com.lifeorganizer.plan;
 
 import com.lifeorganizer.config.EngineConfig;
 import com.lifeorganizer.domain.Block;
+import java.util.EnumSet;
+import java.time.LocalTime;
+import java.time.DayOfWeek;
+import com.lifeorganizer.domain.PreferredTime;
+import com.lifeorganizer.domain.Goal;
+import com.lifeorganizer.domain.FixedBlock;
+import com.lifeorganizer.domain.Energy;
+import com.lifeorganizer.domain.Category;
 import com.lifeorganizer.domain.BlockStatus;
 import com.lifeorganizer.domain.Constraint;
 import com.lifeorganizer.domain.DayPlan;
@@ -11,8 +19,6 @@ import com.lifeorganizer.persistence.BlockEntity;
 import com.lifeorganizer.persistence.BlockRepository;
 import com.lifeorganizer.persistence.PlanStore;
 import com.lifeorganizer.persistence.SetupStore;
-import com.lifeorganizer.setup.ConstraintParser;
-import com.lifeorganizer.setup.GoalTreeParser;
 import com.lifeorganizer.support.ExampleSetup;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
@@ -89,13 +95,16 @@ class PlanServiceGenerationTest {
 
         DayPlan tuesday = planService.getOrGenerate(ExampleSetup.MONDAY.plusDays(1));
 
+        // every goal with hours gets one hour every day, so Tuesday looks like Monday
         assertThat(summary(tuesday)).containsExactly(
-            "07:00 Claude certification",
+            "07:00 Gym",
             "08:00 Free",
             "08:30 Work",
             "17:00 Dinner / break",
-            "18:00 RAG showcase",
-            "19:00 Free",
+            "18:00 Claude certification",
+            "19:00 RAG showcase",
+            "20:00 Dating / events",
+            "21:00 Free",
             "22:30 Wind down");
     }
 
@@ -134,10 +143,12 @@ class PlanServiceGenerationTest {
 
     @Test
     void generationWarningsArePersistedAndReturnedOnTheNextLoad() {
-        // 8h of learning for a single goal cannot fit into 7 daily 60-minute chunks.
-        GoalTree tree = new GoalTreeParser().parse("Goals\n├── Career\n│   └── Claude certification\n");
-        List<Constraint> constraints = new ConstraintParser()
-            .parse("Sleep: 23:30-07:00\nLearning: 8h/week\n", tree).constraints();
+        // 8 hours for a single goal cannot fit into 7 daily 60-minute chunks.
+        Category career = Category.of("Career");
+        GoalTree tree = new GoalTree(List.of(career), List.of(new Goal("career-claude-certification", career,
+            "Claude certification", 480, 60, Energy.MEDIUM, PreferredTime.ANY)));
+        List<Constraint> constraints = List.of(new FixedBlock("Sleep", LocalTime.of(23, 30), LocalTime.of(7, 0),
+            EnumSet.allOf(DayOfWeek.class)));
         setupStore.replace(tree, constraints);
 
         DayPlan first = planService.getOrGenerate(ExampleSetup.MONDAY);

@@ -78,10 +78,10 @@ class ChatApiEndToEndTest {
                     .filter(m -> m.role() == AgentMessage.Role.SYSTEM && m.content().startsWith("Current data"))
                     .findFirst().orElseThrow().content();
                 if (userText.contains("review")) {
-                    if (!data.contains("System design (id career-system-design, priority 3")) {
+                    if (!data.contains("Claude certification (id career-claude-certification, 7 h per week)")) {
                         throw new IllegalStateException("week progress is missing from the current data: " + data);
                     }
-                    return new AgentReply("Gym has been postponed twice; System design is on track.", List.of());
+                    return new AgentReply("Gym has been postponed twice; Claude certification is on track.", List.of());
                 }
                 if (toolResults.isEmpty()) {
                     String todaysPlan = data.substring(data.indexOf('{'), data.lastIndexOf('}') + 1);
@@ -169,7 +169,7 @@ class ChatApiEndToEndTest {
         String reply = send("please review my week");
 
         org.assertj.core.api.Assertions.assertThat((String) JsonPath.read(reply, "$.text"))
-            .isEqualTo("Gym has been postponed twice; System design is on track.");
+            .isEqualTo("Gym has been postponed twice; Claude certification is on track.");
         org.assertj.core.api.Assertions.assertThat((Object) JsonPath.read(reply, "$.proposal")).isNull();
     }
 }

@@ -3,11 +3,8 @@ package com.lifeorganizer.setup.api;
 import com.lifeorganizer.api.TimeFormats;
 import com.lifeorganizer.domain.Category;
 import com.lifeorganizer.domain.Constraint;
-import com.lifeorganizer.domain.DurationQuota;
 import com.lifeorganizer.domain.Energy;
-import com.lifeorganizer.domain.EveningQuota;
 import com.lifeorganizer.domain.FixedBlock;
-import com.lifeorganizer.domain.FrequencyQuota;
 import com.lifeorganizer.domain.Goal;
 import com.lifeorganizer.domain.PreferredTime;
 import com.lifeorganizer.error.InvalidRequestException;
@@ -36,8 +33,7 @@ public final class SetupDtoMapper {
     }
 
     public static GoalDto toDto(Goal goal) {
-        return new GoalDto(goal.id(), goal.category().id(), goal.name(), goal.priority(),
-            goal.deadline() == null ? null : TimeFormats.format(goal.deadline()),
+        return new GoalDto(goal.id(), goal.category().id(), goal.name(), goal.minutesPerWeek(),
             goal.defaultBlockMinutes(), goal.energy().name(), goal.preferredTime().name());
     }
 
@@ -45,14 +41,7 @@ public final class SetupDtoMapper {
         return switch (constraint) {
             case FixedBlock f -> new ConstraintDto("FIXED_BLOCK", f.label(),
                 TimeFormats.format(f.start()), TimeFormats.format(f.end()),
-                f.days().stream().sorted().map(DayOfWeek::name).toList(),
-                null, null, null, null, null, null);
-            case FrequencyQuota q -> new ConstraintDto("FREQUENCY_QUOTA", q.label(), null, null, null,
-                q.timesPerWeek(), q.sessionMinutes(), q.goalId(), null, null, null);
-            case DurationQuota q -> new ConstraintDto("DURATION_QUOTA", q.label(), null, null, null,
-                null, null, null, q.minutesPerWeek(), q.categoryId(), null);
-            case EveningQuota q -> new ConstraintDto("EVENING_QUOTA", q.label(), null, null, null,
-                null, null, null, null, q.categoryId(), q.eveningsPerWeek());
+                f.days().stream().sorted().map(DayOfWeek::name).toList());
         };
     }
 
@@ -71,8 +60,7 @@ public final class SetupDtoMapper {
             throw new InvalidRequestException(
                 "Goal '" + dto.id() + "' refers to unknown category '" + dto.categoryId() + "'");
         }
-        return build("goal '" + dto.id() + "'", () -> new Goal(dto.id(), category, dto.name(), dto.priority(),
-            dto.deadline() == null || dto.deadline().isBlank() ? null : TimeFormats.parseDate(dto.deadline(), "deadline"),
+        return build("goal '" + dto.id() + "'", () -> new Goal(dto.id(), category, dto.name(), dto.minutesPerWeek(),
             dto.defaultBlockMinutes(),
             parseEnum(Energy.class, dto.energy(), "energy"),
             parseEnum(PreferredTime.class, dto.preferredTime(), "preferredTime")));
@@ -88,13 +76,6 @@ public final class SetupDtoMapper {
             case "FIXED_BLOCK" -> build(what, () -> new FixedBlock(dto.label(),
                 TimeFormats.parseTime(dto.start(), "start"), TimeFormats.parseTime(dto.end(), "end"),
                 parseDays(dto.days())));
-            case "FREQUENCY_QUOTA" -> build(what, () -> new FrequencyQuota(dto.label(),
-                required(dto.timesPerWeek(), "timesPerWeek"), required(dto.sessionMinutes(), "sessionMinutes"),
-                dto.goalId()));
-            case "DURATION_QUOTA" -> build(what, () -> new DurationQuota(dto.label(),
-                required(dto.minutesPerWeek(), "minutesPerWeek"), dto.categoryId()));
-            case "EVENING_QUOTA" -> build(what, () -> new EveningQuota(dto.label(),
-                required(dto.eveningsPerWeek(), "eveningsPerWeek"), dto.categoryId()));
             default -> throw new InvalidRequestException("Unknown constraint type '" + dto.type() + "'");
         };
     }
@@ -115,13 +96,6 @@ public final class SetupDtoMapper {
         if (value != null && value.length() > MAX_TEXT_LENGTH) {
             throw new InvalidRequestException(field + " must be at most " + MAX_TEXT_LENGTH + " characters");
         }
-    }
-
-    private static int required(Integer value, String field) {
-        if (value == null) {
-            throw new InvalidRequestException(field + " is required");
-        }
-        return value;
     }
 
     private static Set<DayOfWeek> parseDays(List<String> names) {

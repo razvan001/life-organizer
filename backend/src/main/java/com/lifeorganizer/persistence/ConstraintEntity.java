@@ -10,8 +10,8 @@ import jakarta.persistence.InheritanceType;
 import jakarta.persistence.Table;
 
 /**
- * One row per Constraint, all four variants in a single table ({@code plan_constraint}) with a
- * {@code type} discriminator. Mirrors the sealed Phase 1a {@code Constraint} interface.
+ * One row per Constraint in {@code plan_constraint}, with a {@code type} discriminator. Fixed blocks are the only
+ * kind left; the single-table layout stays so the stored rows keep their shape.
  */
 @Entity
 @Table(name = "plan_constraint")

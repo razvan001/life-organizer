@@ -32,9 +32,9 @@ class WeekProgressToolTest {
     private static final LocalDate TODAY = LocalDate.of(2026, 9, 30);
     private static final LocalDate MON = LocalDate.of(2026, 9, 28);
     private static final Category CAREER = new Category("career", "Career");
-    private static final Goal STUDY = new Goal("career-study", CAREER, "Study", 3, LocalDate.of(2026, 10, 2), 60,
+    private static final Goal STUDY = new Goal("career-study", CAREER, "Study", 180, 60,
         Energy.HIGH, PreferredTime.EVENING);
-    private static final Goal CHESS = new Goal("career-chess", CAREER, "Chess", 2, null, 30, Energy.LOW, PreferredTime.ANY);
+    private static final Goal CHESS = new Goal("career-chess", CAREER, "Chess", 90, 30, Energy.LOW, PreferredTime.ANY);
 
     private static Block goalBlock(String id, LocalDate date, int hour, int minutes, String goalId, BlockStatus status) {
         LocalTime start = LocalTime.of(hour, 0);
@@ -58,8 +58,8 @@ class WeekProgressToolTest {
 
         assertThat(result.lines()).containsExactly(
             "Days so far: Mon 2026-09-28, Wed 2026-09-30 (today). Not planned: Tue 2026-09-29.",
-            "Study (id career-study, priority 3, deadline 2026-10-02): planned 120 min, done 60 min, 0 cancelled, 1 postponed",
-            "Chess (id career-chess, priority 2, deadline none): planned 30 min, done 0 min, 1 cancelled, 0 postponed");
+            "Study (id career-study, 3 h per week): planned 120 min, done 60 min, 0 cancelled, 1 postponed",
+            "Chess (id career-chess, 1.5 h per week): planned 30 min, done 0 min, 1 cancelled, 0 postponed");
         verify(plans, never()).findDay(TODAY.plusDays(1));
     }
 

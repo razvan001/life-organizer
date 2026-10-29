@@ -11,7 +11,6 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
-import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
 
@@ -56,63 +55,37 @@ class SetupRepositoriesTest {
     }
 
     @Test
-    void goalsRoundTripWithTheirCategoryAndAnOptionalDeadline() {
+    void goalsRoundTripWithTheirCategoryAndHours() {
         CategoryEntity career = categories.save(new CategoryEntity("career", "Career", 0));
-        goals.save(new GoalEntity("career-cert", career, "Claude certification", 5,
-            LocalDate.of(2026, 12, 1), 90, "HIGH", "EVENING", 1));
-        goals.save(new GoalEntity("career-azure", career, "Azure AI", 3,
-            null, 60, "MEDIUM", "ANY", 0));
+        goals.save(new GoalEntity("career-cert", career, "Claude certification", 150, 90, "HIGH", "EVENING", 1));
+        goals.save(new GoalEntity("career-azure", career, "Azure AI", 0, 60, "MEDIUM", "ANY", 0));
         flushAndClear();
 
         List<GoalEntity> found = goals.findAllByOrderByPositionAsc();
 
         assertThat(found).extracting(GoalEntity::getId).containsExactly("career-azure", "career-cert");
-        assertThat(found.get(0).getDeadline()).isNull();
+        assertThat(found.get(0).getMinutesPerWeek()).isZero();
         GoalEntity cert = found.get(1);
         assertThat(cert.getCategory().getName()).isEqualTo("Career");
         assertThat(cert.getName()).isEqualTo("Claude certification");
-        assertThat(cert.getPriority()).isEqualTo(5);
-        assertThat(cert.getDeadline()).isEqualTo(LocalDate.of(2026, 12, 1));
+        assertThat(cert.getMinutesPerWeek()).isEqualTo(150);
         assertThat(cert.getDefaultBlockMinutes()).isEqualTo(90);
         assertThat(cert.getEnergy()).isEqualTo("HIGH");
         assertThat(cert.getPreferredTime()).isEqualTo("EVENING");
     }
 
     @Test
-    void everyConstraintSubtypeRoundTripsInPositionOrder() {
-        categories.save(new CategoryEntity("career", "Career", 0));
-        categories.save(new CategoryEntity("social", "Social", 1));
-        CategoryEntity health = categories.save(new CategoryEntity("health", "Health", 2));
-        goals.save(new GoalEntity("health-gym", health, "Gym", 3, null, 60, "MEDIUM", "ANY", 0));
-        categories.flush();
-        goals.flush();
-
-        constraints.save(new EveningQuotaEntity("Social", 3, 2, "social"));
+    void fixedBlocksRoundTripInPositionOrder() {
+        constraints.save(new FixedBlockEntity("Sleep", 1, LocalTime.of(23, 30), LocalTime.of(7, 0), "MONDAY"));
         constraints.save(new FixedBlockEntity("Work", 0, LocalTime.of(8, 30), LocalTime.of(17, 0), "MONDAY,TUESDAY"));
-        constraints.save(new DurationQuotaEntity("Learning", 2, 300, "career"));
-        constraints.save(new FrequencyQuotaEntity("Gym", 1, 4, 60, "health-gym"));
         flushAndClear();
 
         List<ConstraintEntity> all = constraints.findAllByOrderByPositionAsc();
 
-        assertThat(all).extracting(ConstraintEntity::getLabel).containsExactly("Work", "Gym", "Learning", "Social");
-
+        assertThat(all).extracting(ConstraintEntity::getLabel).containsExactly("Work", "Sleep");
         FixedBlockEntity work = (FixedBlockEntity) all.get(0);
         assertThat(work.getStartTime()).isEqualTo(LocalTime.of(8, 30));
         assertThat(work.getEndTime()).isEqualTo(LocalTime.of(17, 0));
         assertThat(work.getDays()).isEqualTo("MONDAY,TUESDAY");
-
-        FrequencyQuotaEntity gym = (FrequencyQuotaEntity) all.get(1);
-        assertThat(gym.getTimesPerWeek()).isEqualTo(4);
-        assertThat(gym.getSessionMinutes()).isEqualTo(60);
-        assertThat(gym.getGoalId()).isEqualTo("health-gym");
-
-        DurationQuotaEntity learning = (DurationQuotaEntity) all.get(2);
-        assertThat(learning.getMinutesPerWeek()).isEqualTo(300);
-        assertThat(learning.getCategoryId()).isEqualTo("career");
-
-        EveningQuotaEntity social = (EveningQuotaEntity) all.get(3);
-        assertThat(social.getEveningsPerWeek()).isEqualTo(2);
-        assertThat(social.getCategoryId()).isEqualTo("social");
     }
 }

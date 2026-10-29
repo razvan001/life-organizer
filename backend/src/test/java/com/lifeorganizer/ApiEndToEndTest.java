@@ -125,6 +125,22 @@ class ApiEndToEndTest {
     }
 
     @Test
+    void savedGoalHoursComeBackAndAreScheduled() throws Exception {
+        String setup = "{\"categories\":[{\"id\":\"health\",\"name\":\"Health\"}],"
+            + "\"goals\":[{\"id\":\"health-gym\",\"categoryId\":\"health\",\"name\":\"Gym\",\"minutesPerWeek\":120,"
+            + "\"defaultBlockMinutes\":60,\"energy\":\"MEDIUM\",\"preferredTime\":\"ANY\"}],"
+            + "\"constraints\":[]}";
+        mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(setup)).andExpect(status().isOk());
+
+        mvc.perform(get("/api/setup"))
+            .andExpect(jsonPath("$.goals[0].minutesPerWeek").value(120))
+            .andExpect(jsonPath("$.goals[0].priority").doesNotExist())
+            .andExpect(jsonPath("$.goals[0].deadline").doesNotExist());
+        // 2 hours = two sessions, Monday (today) and Tuesday
+        assertThat((List<String>) JsonPath.read(getToday(), "$.blocks[?(@.kind=='GOAL')].title")).containsExactly("Gym");
+    }
+
+    @Test
     void todayShowsTheExampleDayInOrder() throws Exception {
         saveExampleSetup();
 
@@ -211,8 +227,8 @@ class ApiEndToEndTest {
         assertThat((Integer) JsonPath.read(getToday(), "$.blocks.length()")).isEqualTo(9);
 
         String smallSetup = "{\"categories\":[{\"id\":\"health\",\"name\":\"Health\"}],"
-            + "\"goals\":[{\"id\":\"health-gym\",\"categoryId\":\"health\",\"name\":\"Gym\",\"priority\":3,"
-            + "\"deadline\":null,\"defaultBlockMinutes\":60,\"energy\":\"MEDIUM\",\"preferredTime\":\"ANY\"}],"
+            + "\"goals\":[{\"id\":\"health-gym\",\"categoryId\":\"health\",\"name\":\"Gym\",\"minutesPerWeek\":120,"
+            + "\"defaultBlockMinutes\":60,\"energy\":\"MEDIUM\",\"preferredTime\":\"ANY\"}],"
             + "\"constraints\":[]}";
         mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON).content(smallSetup))
             .andExpect(status().isOk())
@@ -271,7 +287,7 @@ class ApiEndToEndTest {
 
         mvc.perform(put("/api/setup").contentType(MediaType.APPLICATION_JSON)
                 .content("{\"categories\":[],\"goals\":[{\"id\":\"x\",\"categoryId\":\"nope\",\"name\":\"X\","
-                    + "\"priority\":3,\"defaultBlockMinutes\":60,\"energy\":\"MEDIUM\",\"preferredTime\":\"ANY\"}],"
+                    + "\"minutesPerWeek\":120,\"defaultBlockMinutes\":60,\"energy\":\"MEDIUM\",\"preferredTime\":\"ANY\"}],"
                     + "\"constraints\":[]}"))
             .andExpect(status().isBadRequest())
             .andExpect(jsonPath("$.detail").value("Goal 'x' refers to unknown category 'nope'"));
