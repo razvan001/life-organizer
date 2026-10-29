@@ -136,6 +136,19 @@ class PlanServiceGenerationTest {
     }
 
     @Test
+    void aSetupWhoseGoalsHaveNoHoursIsNotPlannedYet() {
+        // right after the V4 migration every goal has 0 hours: a day stored now would stay empty for good
+        Category health = Category.of("Health");
+        setupStore.replace(new GoalTree(List.of(health), List.of(Goal.withDefaults("health-gym", health, "Gym"))),
+            ExampleSetup.constraints());
+
+        assertThatThrownBy(() -> planService.getOrGenerate(ExampleSetup.MONDAY))
+            .isInstanceOf(SetupRequiredException.class)
+            .hasMessage("Your goals have no hours yet - set hours per week on the Setup page");
+        assertThat(planStore.findDay(ExampleSetup.MONDAY)).isEmpty();
+    }
+
+    @Test
     void throwsWhenNoSetupWasEverSaved() {
         assertThatThrownBy(() -> planService.getOrGenerate(ExampleSetup.MONDAY))
             .isInstanceOf(SetupRequiredException.class);

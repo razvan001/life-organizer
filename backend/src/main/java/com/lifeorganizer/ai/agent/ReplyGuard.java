@@ -20,15 +20,17 @@ final class ReplyGuard {
         + "|removed|rescheduled|saved";
 
     /**
-     * Passive claims only for what the assistant itself could have done. A weekly summary reports what already
-     * happened to the plan ("Gym has been postponed twice"), so the plan-event verbs are left out here.
+     * A weekly summary reports what already happened to the plan ("Gym has been postponed twice", "two sessions have
+     * been moved this week"). A passive claim followed in the same sentence by a count or a past period is such a
+     * report, not a claim that the assistant just changed something.
      */
-    private static final String PASSIVE_DONE_VERBS = "applied|saved|updated|changed";
+    private static final String REPORTED_HISTORY = "(?![^.!?]*\\b(?:once|twice|times|this week|last week|so far"
+        + "|yesterday|on (?:mon|tues|wednes|thurs|fri|satur|sun)day)\\b)";
 
     /** "I've added ...", "... have been applied", "it's done". */
     private static final Pattern DONE_CLAIM = Pattern.compile(
         "\\bI(['\u2019]ve| have)\\s+(just\\s+|already\\s+|now\\s+)?(" + DONE_VERBS + ")\\b"
-            + "|\\b(has|have) been (" + PASSIVE_DONE_VERBS + ")\\b"
+            + "|\\b(has|have) been (" + DONE_VERBS + ")\\b" + REPORTED_HISTORY
             + "|\\bit(['\u2019]s| is) done\\b",
         Pattern.CASE_INSENSITIVE);
 

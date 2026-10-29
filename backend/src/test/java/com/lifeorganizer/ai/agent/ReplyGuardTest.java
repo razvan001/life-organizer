@@ -25,6 +25,8 @@ class ReplyGuardTest {
         "I’ve cancelled the gym.",
         "I have moved Study to the evening.",
         "The plan has been updated.",
+        "Padel has been cancelled.",
+        "Your gym session has been moved to 19:00 today.",
         "It's done.",
         "You can press Apply to keep it.",
         "Let me know if you'd like to Apply or Reject it.",

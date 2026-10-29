@@ -170,9 +170,13 @@ public class PlanService {
 
     private DayPlan generate(LocalDate date) {
         if (setupStore.isEmpty()) {
-            throw new SetupRequiredException("No setup saved yet - paste your goals and constraints first");
+            throw new SetupRequiredException("No setup saved yet - add your goals first");
         }
         GoalTree tree = setupStore.loadTree();
+        // A day is stored for good once generated; one planned before any goal has hours would stay empty.
+        if (tree.goals().stream().noneMatch(goal -> goal.minutesPerWeek() > 0)) {
+            throw new SetupRequiredException("Your goals have no hours yet - set hours per week on the Setup page");
+        }
         List<Constraint> constraints = setupStore.loadConstraints();
 
         WeekPlan week = weekAllocator.allocate(tree.goals(), constraints, mondayOf(date));
