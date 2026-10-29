@@ -5,9 +5,20 @@
   gap: 0.4rem;
 }
 
-.setup-editor .removes-hint {
-  flex-basis: 100%;
+.setup-editor .unscheduled-hint {
   font-size: 0.8rem;
+}
+
+/* a problem with one goal's hours goes on its own line under the row */
+.setup-editor .row-problem {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+.setup-editor .unit {
+  font-size: 0.85rem;
+  color: var(--color-muted);
 }
 
 .new-tag {
@@ -48,11 +59,6 @@
 .constraint-list [role='alert'] {
   margin: 0 0 0.5rem;
   font-size: 0.85rem;
-}
-
-.constraint-type {
-  font-weight: 600;
-  min-width: 9rem;
 }
 
 input.number {

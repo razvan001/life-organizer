@@ -84,42 +84,39 @@ describe('ChatPanel', () => {
 
     await waitFor(() => {
       const post = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')!
-      expect(JSON.parse(post[1]!.body as string)).toEqual({ text: 'Review my week and suggest goal priorities.' })
+      expect(JSON.parse(post[1]!.body as string)).toEqual({ text: 'Review my week.' })
     })
     await waitFor(() => expect(screen.getByRole('button', { name: 'Review my week' })).toBeEnabled())
     expect(screen.getByLabelText('Message the assistant')).toHaveValue('draft')
   })
 
-  it('shows a priorities proposal with its rows and applies it', async () => {
-    const user = userEvent.setup()
-    const priorities: ChatMessageDto = message({
-      id: 3,
-      role: 'ASSISTANT',
-      text: 'I suggest raising Study.',
-      proposal: {
-        kind: 'PRIORITIES',
-        rationale: 'Exam week',
-        events: [],
-        changes: ['Would re-plan Tue 2026-09-15'],
-        preview: null,
-        priorityChanges: [{ goalId: 'career-study', goalName: 'Study', from: 3, to: 5, reason: 'exam Friday' }],
-        status: 'PENDING',
-      },
-    })
-    const applied = { ...TODAY, changes: ['Study: priority 3 -> 5', 'Re-planned Tue 2026-09-15'] }
-    const onApplied = vi.fn()
+  it('shows an old priorities proposal read-only, with its stored outcome', async () => {
+    const proposal = (id: number, status: 'APPLIED' | 'REJECTED'): ChatMessageDto =>
+      message({
+        id,
+        role: 'ASSISTANT',
+        text: 'I suggest raising Study.',
+        proposal: {
+          kind: 'PRIORITIES',
+          rationale: 'Exam week',
+          events: [],
+          changes: ['Would re-plan Tue 2026-09-15'],
+          preview: null,
+          priorityChanges: [{ goalId: 'career-study', goalName: 'Study', from: 3, to: 5, reason: 'exam Friday' }],
+          status,
+        },
+      })
     mockApi({
-      'GET /api/assistant/chat': () => jsonResponse([priorities]),
+      'GET /api/assistant/chat': () => jsonResponse([proposal(3, 'APPLIED'), proposal(4, 'REJECTED')]),
       'GET /api/assistant/chat/days': () => jsonResponse([]),
-      'POST /api/assistant/chat/messages/3/apply': () => jsonResponse(applied),
     })
-    renderPanel(onApplied)
+    renderPanel()
 
-    expect(await screen.findByText('Proposed priorities')).toBeInTheDocument()
-    expect(screen.getByText('3 → 5')).toBeInTheDocument()
-    await user.click(screen.getByRole('button', { name: 'Apply' }))
-
-    await waitFor(() => expect(onApplied).toHaveBeenCalledWith(applied))
+    expect(await screen.findAllByText('Proposed priorities')).toHaveLength(2)
+    expect(screen.getByText('Applied')).toHaveClass('status-pill')
+    expect(screen.getByText('Rejected')).toHaveClass('status-pill')
+    expect(screen.queryByRole('button', { name: 'Apply' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Reject' })).not.toBeInTheDocument()
   })
 
   it('announces new messages and keeps the Thinking text for screen readers', async () => {

@@ -1,6 +1,5 @@
 import { render, screen } from '@testing-library/react'
-import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { PriorityProposalCard } from './PriorityProposalCard'
 
 const CHANGES = [
@@ -8,11 +7,12 @@ const CHANGES = [
   { goalId: 'health-padel', goalName: 'Padel', from: 4, to: 3, reason: 'rest' },
 ]
 
+// Weekly reviews no longer propose priorities; the card only shows ones saved in older threads.
 describe('PriorityProposalCard', () => {
   it('shows one row per priority change and the re-plan note', () => {
     render(
       <PriorityProposalCard rationale="Exam week" priorityChanges={CHANGES} changes={['Would re-plan Thu 2026-10-01']}
-        busy={false} onApply={vi.fn()} onReject={vi.fn()} />,
+        status="APPLIED" />,
     )
 
     expect(screen.getByText('Proposed priorities')).toBeInTheDocument()
@@ -24,29 +24,21 @@ describe('PriorityProposalCard', () => {
     expect(screen.getByText('Would re-plan Thu 2026-10-01')).toBeInTheDocument()
   })
 
-  it('applies and rejects', async () => {
-    const user = userEvent.setup()
-    const onApply = vi.fn()
-    const onReject = vi.fn()
-    render(
-      <PriorityProposalCard rationale="x" priorityChanges={CHANGES} changes={[]} busy={false} onApply={onApply}
-        onReject={onReject} />,
+  it('shows its stored outcome and no buttons', () => {
+    const { rerender } = render(
+      <PriorityProposalCard rationale="x" priorityChanges={CHANGES} changes={[]} status="APPLIED" />,
     )
+    expect(screen.getByText('Applied')).toHaveClass('status-pill', 'status-applied')
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Apply' }))
-    await user.click(screen.getByRole('button', { name: 'Reject' }))
-
-    expect(onApply).toHaveBeenCalledOnce()
-    expect(onReject).toHaveBeenCalledOnce()
+    rerender(<PriorityProposalCard rationale="x" priorityChanges={CHANGES} changes={[]} status="REJECTED" />)
+    expect(screen.getByText('Rejected')).toHaveClass('status-pill', 'status-rejected')
   })
 
-  it('shows a decided proposal as a status pill', () => {
-    render(
-      <PriorityProposalCard rationale="x" priorityChanges={CHANGES} changes={[]} status="APPLIED" busy={false}
-        onApply={vi.fn()} onReject={vi.fn()} />,
-    )
+  it('shows one that is still pending as expired: it can no longer be applied', () => {
+    render(<PriorityProposalCard rationale="x" priorityChanges={CHANGES} changes={[]} status="PENDING" />)
 
-    expect(screen.getByText('Applied')).toHaveClass('status-pill', 'status-applied')
+    expect(screen.getByText('Expired')).toHaveClass('status-pill', 'status-expired')
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
   })
 })

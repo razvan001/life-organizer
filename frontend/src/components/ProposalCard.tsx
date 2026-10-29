@@ -36,10 +36,15 @@ interface FooterProps {
   onReject: () => void
 }
 
-/** Apply / Reject, or the final status pill once the proposal is decided. Shared by both proposal cards. */
+/** The outcome of a decided proposal. Shared by both proposal cards. */
+export function StatusPill({ status }: { status: Exclude<ProposalStatus, 'PENDING'> }) {
+  return <span className={`status-pill status-${status.toLowerCase()}`}>{STATUS_TEXT[status]}</span>
+}
+
+/** Apply / Reject, or the final status pill once the proposal is decided. */
 export function ProposalFooter({ status, busy, onApply, onReject }: FooterProps) {
   if (status && status !== 'PENDING') {
-    return <span className={`status-pill status-${status.toLowerCase()}`}>{STATUS_TEXT[status]}</span>
+    return <StatusPill status={status} />
   }
   return (
     <div className="proposal-actions">

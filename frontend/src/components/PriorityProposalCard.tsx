@@ -1,5 +1,5 @@
 import type { PriorityChangeDto, ProposalStatus } from '../api/types'
-import { ProposalFooter } from './ProposalCard'
+import { StatusPill } from './ProposalCard'
 import './ProposalCard.css'
 
 interface Props {
@@ -7,14 +7,14 @@ interface Props {
   priorityChanges: PriorityChangeDto[]
   /** The re-plan note, e.g. "Would re-plan Thu 2026-10-01". */
   changes: string[]
-  status?: ProposalStatus
-  busy: boolean
-  onApply: () => void
-  onReject: () => void
+  status: ProposalStatus
 }
 
-/** A weekly-review proposal: new goal priorities, one row per goal, with Apply / Reject. */
-export function PriorityProposalCard({ rationale, priorityChanges, changes, status, busy, onApply, onReject }: Props) {
+/**
+ * A proposal of new goal priorities from the old weekly review, one row per goal. Nothing creates these any more;
+ * old threads still show them, read-only. One still pending can no longer be applied, so it shows as expired.
+ */
+export function PriorityProposalCard({ rationale, priorityChanges, changes, status }: Props) {
   return (
     <div className="proposal">
       <p className="proposal-heading">Proposed priorities</p>
@@ -38,7 +38,7 @@ export function PriorityProposalCard({ rationale, priorityChanges, changes, stat
           ))}
         </ul>
       )}
-      <ProposalFooter status={status} busy={busy} onApply={onApply} onReject={onReject} />
+      <StatusPill status={status === 'PENDING' ? 'EXPIRED' : status} />
     </div>
   )
 }

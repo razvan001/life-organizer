@@ -13,28 +13,20 @@ export interface GoalDto {
   id: string
   categoryId: string
   name: string
-  priority: number
-  deadline: string | null
+  /** The goal's whole weekly time; the Setup page shows it as hours. */
+  minutesPerWeek: number
   defaultBlockMinutes: number
   energy: Energy
   preferredTime: PreferredTime
 }
 
-export type ConstraintType = 'FIXED_BLOCK' | 'FREQUENCY_QUOTA' | 'DURATION_QUOTA' | 'EVENING_QUOTA'
-
-/** One flat shape for all four constraint types; fields a type does not use are null. */
+/** A fixed block such as Work or Sleep, the only kind of constraint. */
 export interface ConstraintDto {
-  type: ConstraintType
+  type: 'FIXED_BLOCK'
   label: string
   start: string | null
   end: string | null
   days: string[] | null
-  timesPerWeek: number | null
-  sessionMinutes: number | null
-  goalId: string | null
-  minutesPerWeek: number | null
-  categoryId: string | null
-  eveningsPerWeek: number | null
 }
 
 /** What GET /api/setup returns and PUT /api/setup accepts. */
@@ -42,19 +34,6 @@ export interface SetupPayload {
   categories: CategoryDto[]
   goals: GoalDto[]
   constraints: ConstraintDto[]
-}
-
-export interface SetupParseRequest {
-  goalsText: string
-  constraintsText: string
-}
-
-export interface SetupExtractionRequest {
-  text: string
-}
-
-export interface SetupParseResponse extends SetupPayload {
-  warnings: string[]
 }
 
 export type BlockKind = 'FIXED' | 'ROUTINE' | 'GOAL' | 'FREE' | 'ADHOC'
@@ -121,7 +100,10 @@ export interface PriorityChangeDto {
 }
 
 export interface ProposalDto {
-  /** PLAN: changes to today's plan (events + preview). PRIORITIES: new goal priorities (no preview). */
+  /**
+   * PLAN: changes to today's plan (events + preview). PRIORITIES: new goal priorities from the old weekly review;
+   * nothing creates them any more, they only appear in threads saved before.
+   */
   kind: 'PLAN' | 'PRIORITIES'
   rationale: string
   events: ProposedEventDto[]

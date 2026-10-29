@@ -1,10 +1,10 @@
-import type { CategoryDto, ConstraintDto, ConstraintType, GoalDto, SetupPayload } from '../api/types'
+import type { CategoryDto, ConstraintDto, GoalDto, SetupPayload } from '../api/types'
 import { categoryIdFor, goalIdFor } from './slug'
 
-// Every change to a saved setup on the Setup page goes through these functions. They never change the draft they
-// are given, and they keep every value the user did not touch, so Save sends it back unchanged.
+// Every change to the setup on the Setup page goes through these functions. They never change the draft they are
+// given, and they keep every value the user did not touch, so Save sends it back unchanged.
 
-/** A constraint on screen. `key` stays the same while the constraint is edited; it is also the React key. */
+/** A fixed block on screen. `key` stays the same while it is edited; it is also the React key. */
 export interface DraftConstraint {
   key: number
   isNew: boolean
@@ -24,6 +24,14 @@ export type EditResult = { ok: true; draft: DraftSetup } | { ok: false; error: s
 /** The backend's column limit, for names, labels and ids. */
 export const MAX_TEXT_LENGTH = 255
 
+/** A full week, the most hours a goal can have. */
+export const MAX_MINUTES_PER_WEEK = 7 * 24 * 60
+
+/** The engine plans on a 30-minute grid, so hours go in half-hour steps. */
+const GRID_MINUTES = 30
+
+export const EMPTY_SETUP: SetupPayload = { categories: [], goals: [], constraints: [] }
+
 export function toDraft(saved: SetupPayload): DraftSetup {
   return {
     categories: saved.categories,
@@ -32,15 +40,10 @@ export function toDraft(saved: SetupPayload): DraftSetup {
   }
 }
 
-/** What Save sends. A category without goals is dropped, unless a constraint still points to it. */
+/** What Save sends. A category without goals is dropped. */
 export function toPayload(draft: DraftSetup): SetupPayload {
-  const constraints = draft.constraints.map((constraint) => constraint.value)
-  const categories = draft.categories.filter(
-    (category) =>
-      draft.goals.some((goal) => goal.categoryId === category.id) ||
-      constraints.some((constraint) => constraint.categoryId === category.id),
-  )
-  return { categories, goals: draft.goals, constraints }
+  const categories = draft.categories.filter((category) => draft.goals.some((goal) => goal.categoryId === category.id))
+  return { categories, goals: draft.goals, constraints: draft.constraints.map((constraint) => constraint.value) }
 }
 
 // Both sides go through toPayload: a saved category without goals is dropped on Save either way, so it is not a
@@ -49,12 +52,24 @@ export function isChanged(draft: DraftSetup, saved: SetupPayload): boolean {
   return JSON.stringify(toPayload(draft)) !== JSON.stringify(toPayload(toDraft(saved)))
 }
 
+/** What is wrong with a goal's minutes per week, as the message shown next to it, or null. Mirrors the backend. */
+export function hoursProblem(minutes: number): string | null {
+  // an emptied or unreadable hours field arrives as NaN
+  if (Number.isNaN(minutes)) return 'Enter hours per week.'
+  if (!Number.isInteger(minutes) || minutes < 0 || minutes > MAX_MINUTES_PER_WEEK || minutes % GRID_MINUTES !== 0) {
+    return 'Hours per week must be between 0 and 168, in half-hour steps.'
+  }
+  return null
+}
+
 const refuse = (error: string): EditResult => ({ ok: false, error })
 
-export function addGoal(draft: DraftSetup, name: string, category: CategoryChoice): EditResult {
+export function addGoal(draft: DraftSetup, name: string, category: CategoryChoice, minutesPerWeek: number): EditResult {
   const goalName = name.trim()
   if (goalName === '') return refuse('Enter a goal name.')
   if (goalName.length > MAX_TEXT_LENGTH) return refuse('A goal name can have at most 255 characters.')
+  const badHours = hoursProblem(minutesPerWeek)
+  if (badHours) return refuse(badHours)
 
   let target: CategoryDto | undefined
   let categories = draft.categories
@@ -80,13 +95,12 @@ export function addGoal(draft: DraftSetup, name: string, category: CategoryChoic
     return refuse(`${owner} already has the goal "${clash.name}".`)
   }
 
-  // the defaults the text parser gives a new goal (Goal.withDefaults)
+  // the backend's defaults for a new goal (Goal.withDefaults)
   const goal: GoalDto = {
     id,
     categoryId: target.id,
     name: goalName,
-    priority: 3,
-    deadline: null,
+    minutesPerWeek,
     defaultBlockMinutes: 60,
     energy: 'MEDIUM',
     preferredTime: 'ANY',
@@ -94,40 +108,12 @@ export function addGoal(draft: DraftSetup, name: string, category: CategoryChoic
   return { ok: true, draft: { ...draft, categories, goals: [...draft.goals, goal] } }
 }
 
-export function updateGoal(
-  draft: DraftSetup,
-  goalId: string,
-  changes: Partial<Pick<GoalDto, 'priority' | 'deadline'>>,
-): DraftSetup {
+export function updateGoal(draft: DraftSetup, goalId: string, changes: Pick<GoalDto, 'minutesPerWeek'>): DraftSetup {
   return { ...draft, goals: draft.goals.map((goal) => (goal.id === goalId ? { ...goal, ...changes } : goal)) }
 }
 
-/** The constraints that only make sense with this goal: they go when the goal goes. */
-export function constraintsRemovedWith(draft: DraftSetup, goalId: string): ConstraintDto[] {
-  return draft.constraints.map((constraint) => constraint.value).filter((value) => pointsToGoal(value, goalId))
-}
-
 export function removeGoal(draft: DraftSetup, goalId: string): DraftSetup {
-  return {
-    ...draft,
-    goals: draft.goals.filter((goal) => goal.id !== goalId),
-    constraints: draft.constraints.filter((constraint) => !pointsToGoal(constraint.value, goalId)),
-  }
-}
-
-function pointsToGoal(constraint: ConstraintDto, goalId: string): boolean {
-  return constraint.type === 'FREQUENCY_QUOTA' && constraint.goalId === goalId
-}
-
-/**
- * A goal has at most one times-per-week quota, a category at most one hours-per-week and one evenings-per-week
- * quota: the planner counts each quota on its own, so a second one would plan the target twice as often.
- */
-export function hasQuota(draft: DraftSetup, type: ConstraintType, targetId: string): boolean {
-  if (type === 'FIXED_BLOCK') return false
-  return draft.constraints.some(
-    ({ value }) => value.type === type && (type === 'FREQUENCY_QUOTA' ? value.goalId : value.categoryId) === targetId,
-  )
+  return { ...draft, goals: draft.goals.filter((goal) => goal.id !== goalId) }
 }
 
 export function addConstraint(draft: DraftSetup, value: ConstraintDto): DraftSetup {
@@ -148,33 +134,20 @@ export function removeConstraint(draft: DraftSetup, key: number): DraftSetup {
 
 const TIME = /^\d{2}:\d{2}$/
 
-// An emptied number input arrives as NaN, which fails here like any other bad count.
-function isCount(value: number | null): boolean {
-  return value !== null && Number.isInteger(value) && value >= 1
-}
-
-/** The first thing wrong with a constraint, as the message shown next to it, or null. Mirrors the backend's checks. */
+/** The first thing wrong with a fixed block, as the message shown next to it, or null. Mirrors the backend. */
 export function constraintProblem(constraint: ConstraintDto): string | null {
   if (constraint.label.trim() === '') return 'Enter a label.'
   // the label is sent as typed, spaces included
   if (constraint.label.length > MAX_TEXT_LENGTH) return 'A label can have at most 255 characters.'
-  switch (constraint.type) {
-    case 'FIXED_BLOCK':
-      if (!TIME.test(constraint.start ?? '')) return 'Enter a start time.'
-      if (!TIME.test(constraint.end ?? '')) return 'Enter an end time.'
-      if (!constraint.days || constraint.days.length === 0) return 'Pick at least one day.'
-      return null
-    case 'FREQUENCY_QUOTA':
-      if (!isCount(constraint.timesPerWeek)) return 'Times per week must be a whole number of at least 1.'
-      if (!isCount(constraint.sessionMinutes)) return 'Minutes per session must be a whole number of at least 1.'
-      return null
-    case 'DURATION_QUOTA':
-      return isCount(constraint.minutesPerWeek) ? null : 'Hours per week must be more than 0.'
-    case 'EVENING_QUOTA':
-      return isCount(constraint.eveningsPerWeek) ? null : 'Evenings per week must be a whole number of at least 1.'
-  }
+  if (!TIME.test(constraint.start ?? '')) return 'Enter a start time.'
+  if (!TIME.test(constraint.end ?? '')) return 'Enter an end time.'
+  if (!constraint.days || constraint.days.length === 0) return 'Pick at least one day.'
+  return null
 }
 
 export function hasProblems(draft: DraftSetup): boolean {
-  return draft.constraints.some((constraint) => constraintProblem(constraint.value) !== null)
+  return (
+    draft.goals.some((goal) => hoursProblem(goal.minutesPerWeek) !== null) ||
+    draft.constraints.some((constraint) => constraintProblem(constraint.value) !== null)
+  )
 }

@@ -1,15 +1,15 @@
 import { useState } from 'react'
-import { describeConstraint } from '../setup/describeConstraint'
 import {
   addGoal,
   type CategoryChoice,
-  constraintsRemovedWith,
   type DraftSetup,
+  hoursProblem,
   removeGoal,
   updateGoal,
 } from '../setup/editSetup'
+import { Select } from './form/FormControls'
+import { HoursField } from './form/HoursField'
 import { SetupConstraints } from './SetupConstraints'
-import { DateInput, Select } from './form/FormControls'
 import './SetupEditor.css'
 
 interface Props {
@@ -17,33 +17,20 @@ interface Props {
   onChange: (next: DraftSetup) => void
   /** Called with the id of a goal added by hand, so the page can mark it as new. */
   onGoalAdded: (goalId: string) => void
-  /** Goals added since the last Save (by hand or from the brain dump). */
+  /** Goals added since the last Save. */
   newGoalIds: string[]
-  /** Things the brain dump could not add. */
-  warnings: string[]
   /** True while saving: nothing can be changed. */
   disabled: boolean
 }
 
-/** A saved setup, editable in place. Nothing is saved here; the page saves the draft. */
-export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings, disabled }: Props) {
+/** The setup, editable in place: goals with their hours per week, and fixed blocks. The page saves the draft. */
+export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, disabled }: Props) {
   return (
     <div className="setup-editor">
-      {warnings.length > 0 && (
-        <div className="warnings">
-          <h4>Not added</h4>
-          <ul>
-            {warnings.map((warning, index) => (
-              // the index keeps the key unique when the same warning text appears twice
-              <li key={`${index}-${warning}`}>{warning}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
       <div className="card">
         <h4>Goals</h4>
-        <p className="muted">Priority: 1 = least important, 5 = most important. A deadline gives a goal more time.</p>
+        <p className="muted">Each goal gets its hours every week, in sessions of up to an hour on different days.</p>
+        {draft.goals.length === 0 && <p className="muted">No goals yet.</p>}
         {draft.categories.map((category) => {
           const goals = draft.goals.filter((goal) => goal.categoryId === category.id)
           return (
@@ -52,49 +39,34 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings
               {goals.length === 0 && <p className="muted">no goals</p>}
               <ul className="goal-list">
                 {goals.map((goal) => {
-                  const goesWith = constraintsRemovedWith(draft, goal.id)
+                  const problem = hoursProblem(goal.minutesPerWeek)
                   return (
                     <li key={goal.id}>
                       <span className="goal-name">
                         {goal.name}
                         {newGoalIds.includes(goal.id) && <span className="new-tag">new</span>}
-                        {goesWith.length > 0 && (
-                          <span className="muted removes-hint">
-                            also removes: {goesWith.map(describeConstraint).join('; ')}
-                          </span>
-                        )}
+                        {goal.minutesPerWeek === 0 && <span className="muted unscheduled-hint">won't be scheduled</span>}
                       </span>
-                      <Select
-                        aria-label={`Priority for ${goal.name}`}
-                        value={goal.priority}
+                      <HoursField
+                        label={`Hours per week for ${goal.name}`}
+                        minutes={goal.minutesPerWeek}
                         disabled={disabled}
-                        onChange={(event) =>
-                          onChange(updateGoal(draft, goal.id, { priority: Number(event.target.value) }))
-                        }
-                      >
-                        {[1, 2, 3, 4, 5].map((priority) => (
-                          <option key={priority} value={priority}>
-                            {priority}
-                          </option>
-                        ))}
-                      </Select>
-                      <DateInput
-                        aria-label={`Deadline for ${goal.name}`}
-                        value={goal.deadline ?? ''}
-                        disabled={disabled}
-                        // an empty date input gives "", but the backend wants null for "no deadline"
-                        onChange={(event) =>
-                          onChange(updateGoal(draft, goal.id, { deadline: event.target.value || null }))
-                        }
+                        onChange={(minutesPerWeek) => onChange(updateGoal(draft, goal.id, { minutesPerWeek }))}
                       />
+                      <span className="unit">h / week</span>
                       <button
-                        className="btn-danger btn-small"
                         type="button"
+                        className="btn-danger btn-small"
                         disabled={disabled}
                         onClick={() => onChange(removeGoal(draft, goal.id))}
                       >
                         Remove {goal.name}
                       </button>
+                      {problem && (
+                        <p role="alert" className="row-problem">
+                          {problem}
+                        </p>
+                      )}
                     </li>
                   )
                 })}
@@ -113,7 +85,7 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, warnings
 /** The value of the category select that asks for a new category. */
 const NEW_CATEGORY = '__new__'
 
-function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'newGoalIds' | 'warnings'>) {
+function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'newGoalIds'>) {
   const [name, setName] = useState('')
   const [chosenCategoryId, setCategoryId] = useState(draft.categories[0]?.id ?? NEW_CATEGORY)
   // the chosen category can disappear (Discard changes): fall back to the first one, as the select shows
@@ -122,12 +94,15 @@ function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'ne
       ? chosenCategoryId
       : (draft.categories[0]?.id ?? NEW_CATEGORY)
   const [newCategoryName, setNewCategoryName] = useState('')
+  const [minutes, setMinutes] = useState(Number.NaN)
+  // a new key empties the hours field after a goal is added
+  const [hoursKey, setHoursKey] = useState(0)
   const [error, setError] = useState<string | null>(null)
 
   function add() {
     const choice: CategoryChoice =
       categoryId === NEW_CATEGORY ? { newName: newCategoryName } : { existingId: categoryId }
-    const result = addGoal(draft, name, choice)
+    const result = addGoal(draft, name, choice, minutes)
     if (!result.ok) {
       setError(result.error)
       return
@@ -135,6 +110,8 @@ function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'ne
     setError(null)
     setName('')
     setNewCategoryName('')
+    setMinutes(Number.NaN)
+    setHoursKey((key) => key + 1)
     onChange(result.draft)
     onGoalAdded(result.draft.goals[result.draft.goals.length - 1].id)
   }
@@ -170,7 +147,15 @@ function AddGoalForm({ draft, onChange, onGoalAdded, disabled }: Omit<Props, 'ne
           onChange={(event) => setNewCategoryName(event.target.value)}
         />
       )}
-      <button className="btn-primary" type="button" disabled={disabled} onClick={add}>
+      <HoursField
+        key={hoursKey}
+        label="Hours per week for the new goal"
+        minutes={minutes}
+        disabled={disabled}
+        onChange={setMinutes}
+      />
+      <span className="unit">h / week</span>
+      <button type="button" className="btn-primary" disabled={disabled} onClick={add}>
         Add goal
       </button>
       {error && <p role="alert">{error}</p>}

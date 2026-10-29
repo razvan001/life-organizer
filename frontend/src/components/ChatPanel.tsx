@@ -8,7 +8,7 @@ import { Select } from './form/FormControls'
 import './ChatPanel.css'
 
 /** What the "Review my week" shortcut sends. */
-const REVIEW_PROMPT = 'Review my week and suggest goal priorities.'
+const REVIEW_PROMPT = 'Review my week.'
 
 /** Where the browser remembers that the panel was collapsed. */
 const COLLAPSED_KEY = 'assistant-collapsed'
@@ -205,18 +205,7 @@ export function ChatPanel({ today, currentBlocks, busy: pageBusy, onApplied }: P
                     rationale={message.proposal.rationale}
                     priorityChanges={message.proposal.priorityChanges}
                     changes={message.proposal.changes}
-                    status={readOnly && message.proposal.status === 'PENDING' ? 'EXPIRED' : message.proposal.status}
-                    busy={busy}
-                    onApply={() =>
-                      act(async () => {
-                        onApplied(await api.applyProposal(message.id))
-                      })
-                    }
-                    onReject={() =>
-                      act(async () => {
-                        await api.rejectProposal(message.id)
-                      })
-                    }
+                    status={message.proposal.status}
                   />
                 )}
                 {message.proposal && message.proposal.kind !== 'PRIORITIES' && message.proposal.preview && (

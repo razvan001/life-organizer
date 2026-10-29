@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { PARSED, TODAY } from '../test/fixtures'
+import { SAVED, TODAY } from '../test/fixtures'
 import { jsonResponse, mockApi, problemResponse } from '../test/mockApi'
 import { api, ApiError, errorMessage, isSetupRequired } from './client'
 
@@ -48,14 +48,13 @@ describe('api client', () => {
     expect(JSON.parse(init.body as string)).toEqual({ type: 'POSTPONE_BLOCK', blockId: 'b1', reason: 'tired' })
   })
 
-  it('saves the setup with PUT and keeps a missing deadline as null', async () => {
-    const fetchMock = mockApi({ 'PUT /api/setup': () => jsonResponse(PARSED) })
-    const { warnings: _warnings, ...setup } = PARSED
+  it('saves the setup with PUT', async () => {
+    const fetchMock = mockApi({ 'PUT /api/setup': () => jsonResponse(SAVED) })
 
-    await api.saveSetup(setup)
+    await api.saveSetup(SAVED)
 
     const sent = JSON.parse((fetchMock.mock.calls[0][1] as RequestInit).body as string)
-    expect(sent.goals[1].deadline).toBeNull()
+    expect(sent).toEqual(SAVED)
   })
 
   it('fetches the feature flags', async () => {

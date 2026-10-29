@@ -1,4 +1,4 @@
-import type { BlockDto, ConstraintDto, GoalDto, SetupParseResponse, TodayPlanResponse } from '../api/types'
+import type { BlockDto, ConstraintDto, GoalDto, SetupPayload, TodayPlanResponse } from '../api/types'
 
 export function makeBlock(overrides: Partial<BlockDto> = {}): BlockDto {
   return {
@@ -41,32 +41,13 @@ const WORK: ConstraintDto = {
   start: '08:30',
   end: '17:00',
   days: ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'],
-  timesPerWeek: null,
-  sessionMinutes: null,
-  goalId: null,
-  minutesPerWeek: null,
-  categoryId: null,
-  eveningsPerWeek: null,
-}
-
-const GYM: ConstraintDto = {
-  ...WORK,
-  type: 'FREQUENCY_QUOTA',
-  label: 'Gym',
-  start: null,
-  end: null,
-  days: null,
-  timesPerWeek: 4,
-  sessionMinutes: 60,
-  goalId: 'health-gym',
 }
 
 const CERTIFICATION: GoalDto = {
   id: 'career-claude-certification',
   categoryId: 'career',
   name: 'Claude certification',
-  priority: 3,
-  deadline: '2026-10-01',
+  minutesPerWeek: 300,
   defaultBlockMinutes: 60,
   energy: 'MEDIUM',
   preferredTime: 'ANY',
@@ -77,16 +58,15 @@ const GYM_GOAL: GoalDto = {
   id: 'health-gym',
   categoryId: 'health',
   name: 'Gym',
-  deadline: null,
+  minutesPerWeek: 240,
 }
 
-/** What POST /api/setup/parse answers for a small setup, with one warning. */
-export const PARSED: SetupParseResponse = {
+/** What GET /api/setup answers for a small saved setup. */
+export const SAVED: SetupPayload = {
   categories: [
     { id: 'career', name: 'Career' },
     { id: 'health', name: 'Health' },
   ],
   goals: [CERTIFICATION, GYM_GOAL],
-  constraints: [WORK, GYM],
-  warnings: ['No goal found for frequency constraint: Padel'],
+  constraints: [WORK],
 }
