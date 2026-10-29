@@ -2,10 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-Personal day planner: goals + constraints in, a daily time-blocked plan out, re-planned on events; an optional
-LLM layer (Groq) and a RAG memory (local embeddings + pgvector). Single user, localhost, no auth. Spring Boot 4.1 /
-Java 21 backend in `backend/`, React 19 + TypeScript + Vite frontend in `frontend/`. `README.md` has the full API
-table and user-facing behavior.
+Personal day planner: goals (each with hours per week) + fixed blocks in, a daily time-blocked plan out, re-planned
+on events; an optional LLM layer (Groq) and a RAG memory (local embeddings + pgvector). Single user, localhost, no
+auth. Spring Boot 4.1 / Java 21 backend in `backend/`, React 19 + TypeScript + Vite frontend in `frontend/`.
+`README.md` has the full API table and user-facing behavior.
 
 ## Commands
 
@@ -23,28 +23,30 @@ cd frontend && npm run build                  # tsc -b type-check + production b
 ```
 
 - `GROQ_API_KEY` in the backend's environment turns on the AI features; without it they are hidden and return 503.
-- Tests that need no Docker: engine/domain/parser unit tests, `@WebMvcTest` controller tests, Mockito tests,
+- Tests that need no Docker: engine/domain unit tests, `@WebMvcTest` controller tests, Mockito tests,
   `MiniLmTextEmbedderTest`. Everything named `*Repositor*`, `*Store*`, `*EndToEnd*`, `@DataJpaTest` or
   `@SpringBootTest` needs Docker.
 - `LiveGroqSmokeTest` is skipped unless a real key is set.
 
 ## Backend architecture (`backend/src/main/java/com/lifeorganizer`)
 
-- `domain/` and `engine/` are framework-free. The pipeline is `WeekAllocator` (weekly quotas → units per day,
-  priority-weighted with deadline boost) → `DayScheduler` (places units into free time, leftover gaps become
-  `FREE` blocks) → `Replanner` (applies one `PlanEvent`: `CancelBlock`, `PostponeBlock` via `PostponePolicy`,
+- `domain/` and `engine/` are framework-free. The pipeline is `WeekAllocator` (each goal's `minutesPerWeek` →
+  sessions of up to its `defaultBlockMinutes`, one per goal per day, spread over the week, in setup order) →
+  `DayScheduler` (places units into free time, leftover gaps become `FREE` blocks) → `Replanner` (applies one `PlanEvent`: `CancelBlock`, `PostponeBlock` via `PostponePolicy`,
   `MarkDone`, `SetEnergy` (a no-op today), `AddAdhoc`). Wired as beans in `config/EngineConfig`, which also
   provides the `Clock` bean; always use the injected `Clock` for "today".
 - `plan/PlanService` orchestrates engine + persistence. **Days are generated lazily** on first request
-  (`getOrGenerate`, guarded by a Postgres advisory lock) and never regenerated (except `replanUntouchedDays`, which re-generates untouched days later this week after a priority change); `loadDaysFor` also generates the
-  rest of the week for a postpone. Consequence: any method whose call chain can reach `getOrGenerate`/
+  (`getOrGenerate`, guarded by a Postgres advisory lock) and never regenerated, not even after a setup change;
+  `loadDaysFor` also generates the rest of the week for a postpone. Consequence: any method whose call chain can reach `getOrGenerate`/
   `loadDaysFor` must NOT be `@Transactional(readOnly = true)` — Postgres rejects the insert (this shipped as a
   500 once). `simulateEvents` (preview, never persists) and `applyEvents` (atomic batch) are both plain
   `@Transactional`. Replan results are persisted by diffing old vs new blocks (`persistence/PlanStore`).
 - `block.id` is a **global** primary key (ids embed the date, e.g. `free-2026-09-27-08:00`); duplicate ids get
   `~2`, `~3` suffixes. Test fixtures must not reuse a block id across dates.
-- `setup/` parses the pasted text (`GoalTreeParser`, `ConstraintParser`); `setup/api/SetupDtoMapper` is the
-  DTO ↔ domain boundary and enforces the 255-char column limits.
+- Setup model: a `Goal` has category, name and `minutesPerWeek` (0..10080, multiple of 30, checked in
+  `SetupService`); the only `Constraint` is `FixedBlock`. Setup is entered in a form (no text parsing, no AI).
+  `setup/api/SetupDtoMapper` is the DTO ↔ domain boundary and enforces the 255-char column limits. Goal ids are
+  `<categoryId>-<slug(name)>` and must stay stable (past blocks and memory chunks refer to them).
 - `persistence/` — JPA entities + `SetupStore` / `PlanStore`. Schema is Flyway (`resources/db/migration`),
   Hibernate runs `ddl-auto=validate`, so every schema change needs a new `V<n>__*.sql`.
 - `ai/` — optional Groq layer. `LlmClientConfig` creates the client beans only when `GROQ_API_KEY` is set, so
@@ -54,19 +56,17 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   nullable via `["type","null"]`). Error split: `RestClientException` → `AssistantUnavailableException` (502);
   an unusable model reply (`MalformedLlmReplyException`) is downgraded to a normal 200 "not understood" /
   warning, never an HTTP error. Model output is never trusted: `ProposedEventValidator` validates block ids
-  (only today's, never `FREE` blocks) and runs each event through `ApplyEventRequest.toEvent`;
-  `SetupExtractionService` defaults or drops invalid values with warnings. The planning agent is
-  `AgentRunner` (tool-calling loop, max 8 model calls, tools in `ai/agent/tools`, validation in
+  (only today's, never `FREE` blocks) and runs each event through `ApplyEventRequest.toEvent`. The planning
+  agent is `AgentRunner` (tool-calling loop, max 8 model calls, tools in `ai/agent/tools`, validation in
   `ProposedEventValidator`). Every model call resends the prompt and all tool definitions (about 2.5K tokens)
   and Groq's free tier allows 8K tokens per minute, so model calls per turn are scarce: a tool with a
   `contextLabel()` (today's plan, week progress) is run up front and put into a "Current data" message instead
   of being offered to the model, and `ReplyGuard` sends back a reply that claims or spells out a change without
   a recorded proposal. `ChatService` / `ChatStore` keep a per-day `chat_message` thread with proposal
   statuses, and `send` runs outside any transaction (LLM calls take seconds). Proposals are applied via
-  `POST /api/assistant/chat/messages/{id}/apply` (propose = `simulateEvents`). A proposal is `PLAN` (events on
-  today) or `PRIORITIES` (weekly review via `propose_priorities`; Apply runs `SetupStore.updatePriorities` then
-  `PlanService.replanUntouchedDays`, which drops and regenerates stored days later this week that have only
-  untouched PLANNED engine blocks).
+  `POST /api/assistant/chat/messages/{id}/apply` (propose = `simulateEvents`). The only proposal the agent
+  makes is `PLAN` (events on today); "Review my week" is a read-only summary. `PRIORITIES` proposals exist only in threads saved
+  before that: they still load and render read-only, and apply returns 409.
 - `memory/` — RAG. `TextEmbedder` (384 dims) is implemented by `MiniLmTextEmbedder` (quantized all-MiniLM-L6-v2
   via langchain4j ONNX, in-process, always on). `MemoryChunkStore` is plain `JdbcTemplate` SQL on the pgvector
   `memory_chunk` table (vectors passed as `'[..]'::vector` literals, cosine `<=>`, HNSW index); its writes join
@@ -88,8 +88,9 @@ cd frontend && npm run build                  # tsc -b type-check + production b
   `errorMessage()` turns failures into UI text. `api/types.ts` mirrors backend DTOs by hand.
 - `api/useApi.ts` loads data on mount (`{data, error, loading, refetch, setData}`) and drops stale responses;
   pass it a stable function such as `api.getToday`.
-- Pages: `TodayPage` (timeline, block actions, `ChatPanel` when `config.aiEnabled`), `SetupPage` (regex
-  parse, saved setup, and brain-dump extraction all feed one `SetupPreview`), `NotesPage` (notes CRUD + memory
+- Pages: `TodayPage` (timeline, block actions, `ChatPanel` when `config.aiEnabled`), `SetupPage` (one
+  `SetupEditor` over a draft, empty on a first visit: goals with an hours field, plus fixed blocks; helpers in
+  `setup/editSetup.ts`), `NotesPage` (notes CRUD + memory
   search). Confirmations use the shared `ChangeToast`.
 - Styling: design tokens and shared control / card styles in `index.css` (base element rules sit in `:where()`,
   zero specificity), and `Select` / `DateInput` / `TimeInput` in `components/form/`; no raw `<select>` or

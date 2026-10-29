@@ -12,12 +12,12 @@ changes until you press **Apply**.
 
 ## What is in it
 
-- **Scheduling engine** — plain Java, no framework. Weekly quotas ("Learning: 5h/week", "Gym: 4x/week") are
-  split across goals by priority and deadline, placed into free time, and re-planned event by event.
+- **Scheduling engine** — plain Java, no framework. Each goal has its own hours per week ("Gym: 4 h"); they are
+  cut into sessions on different days, placed into free time around fixed blocks, and re-planned event by event.
 - **Chat agent with tools** — a server-side tool-calling loop (Groq, `openai/gpt-oss-120b`). The agent can read,
   search memory and simulate; the only thing that writes is the user applying a proposal.
-- **Weekly review** — one button: the agent looks at what was planned, done, cancelled and postponed, proposes
-  new goal priorities, and on Apply the untouched days later in the week are planned again.
+- **Weekly review** — one button: the agent sums up what was planned, done, cancelled and postponed this week,
+  and how each goal's hours went. It proposes nothing.
 - **Memory (RAG)** — your notes and a one-line summary of every past day, embedded locally (all-MiniLM-L6-v2,
   in-process, no API key) and searched with pgvector. "Tired after a workout" finds "after gym I can't focus".
 - **Guard rails around the model** — every proposed event is validated and simulated before it becomes a card;
@@ -47,7 +47,7 @@ Three decisions shape the code:
 
 1. **The engine decides, the model suggests.** Time is placed by deterministic code that can be unit-tested.
    The LLM never edits the plan; it emits the same events the buttons do, and the engine simulates them first.
-2. **Model output is never trusted.** Block ids, goal ids, priorities and event shapes are checked server-side;
+2. **Model output is never trusted.** Block ids, goal ids and event shapes are checked server-side;
    a problem goes back to the model as a tool error it can fix, never to the user as a broken plan.
 3. **Days are generated lazily and kept.** A day is planned the first time it is needed and then stored, so the
    plan you acted on does not shift under you when goals change.
@@ -103,13 +103,10 @@ npm run dev        # http://localhost:5173
 
 Open http://localhost:5173.
 
-1. **Setup** — on the first visit the two boxes are prefilled with an example. Press **Parse**, adjust priorities
-   or deadlines if you like, press **Save**. Lines the parser did not understand are listed as "not understood" and
-   are ignored; edit the text and press Parse again. **Use example text** puts the example back into the two boxes.
-   Once a setup is saved, the page shows it for editing in place instead: change priorities and deadlines, add or
-   remove goals (under an existing or a new category), edit, add or remove constraints, and, with the assistant
-   configured, add goals by describing them. One **Save** stores everything; **Discard changes** goes back to
-   the saved setup.
+1. **Setup** — one form. **Goals**: add a goal with its name, a category (existing or new) and its hours per
+   week (half-hour steps, e.g. `1.5`); change or remove goals in place. A goal with 0 hours shows "won't be
+   scheduled". **Fixed blocks**: times that are always taken (Work, Sleep), with start, end and days. One
+   **Save** stores everything; **Discard changes** goes back to the saved setup.
 2. **Today** — your timeline. **Done** / **Postpone** (optionally with a reason) / **Cancel** apply to goal blocks
    and ad-hoc events; a toast shows what the replanner changed. A block postponed three times is flagged.
 
@@ -127,14 +124,17 @@ Other commands (run inside `frontend/`):
 ## Try the API
 
 ```bash
-# 1. turn your pasted text into structured data (nothing is saved yet)
-curl -s -X POST localhost:8080/api/setup/parse -H "Content-Type: application/json" -d '{
-  "goalsText": "Goals\n├── Career\n│   ├── Claude certification\n│   └── Azure AI\n├── Health\n│   └── Gym\n└── Social\n    └── Dating / events\n",
-  "constraintsText": "Work: 08:30-17:00\nGym: 4x/week\nSleep: 23:30-07:00\nLearning: 5h/week\nSocial: 2 evenings/week\n"
-}' > parsed.json
+# 1. save a setup: goals with their minutes per week, and fixed blocks
+curl -s -X PUT localhost:8080/api/setup -H "Content-Type: application/json" -d '{
+  "categories": [{"id": "health", "name": "Health"}],
+  "goals": [{"id": "health-gym", "categoryId": "health", "name": "Gym", "minutesPerWeek": 240,
+             "defaultBlockMinutes": 60, "energy": "MEDIUM", "preferredTime": "MORNING"}],
+  "constraints": [{"type": "FIXED_BLOCK", "label": "Work", "start": "08:30", "end": "17:00",
+                   "days": ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"]}]
+}'
 
-# 2. save it (the parse response can be sent back as-is)
-curl -s -X PUT localhost:8080/api/setup -H "Content-Type: application/json" -d @parsed.json
+# 2. read it back
+curl -s localhost:8080/api/setup
 
 # 3. see today's plan
 curl -s localhost:8080/api/plan/today
@@ -154,8 +154,7 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 
 | Method | Path | Purpose |
 |---|---|---|
-| POST | `/api/setup/parse` | goals text + constraints text → structured setup + warnings (no save) |
-| PUT | `/api/setup` | save the (possibly edited) setup; returns what was stored |
+| PUT | `/api/setup` | save the whole setup (goals with `minutesPerWeek`, fixed blocks); returns what was stored |
 | GET | `/api/setup` | the stored setup |
 | GET | `/api/plan/today` | today's blocks (generated on first request, then persisted) |
 | POST | `/api/plan/today/events` | `MARK_DONE`, `POSTPONE_BLOCK`, `CANCEL_BLOCK`, `SET_ENERGY`, `ADD_ADHOC` |
@@ -163,9 +162,8 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | GET | `/api/assistant/chat?date=` | a day's chat thread (default today) |
 | GET | `/api/assistant/chat/days` | days that have a chat thread, newest first |
 | POST | `/api/assistant/chat/messages` | `{text}` → runs the planning agent on today's thread, returns its reply (and a proposal, if any) |
-| POST | `/api/assistant/chat/messages/{id}/apply` | apply that message's pending proposal (today's plan changes, or new goal priorities plus re-planning of untouched later days) |
+| POST | `/api/assistant/chat/messages/{id}/apply` | apply that message's pending proposal of changes to today's plan |
 | POST | `/api/assistant/chat/messages/{id}/reject` | reject that message's pending proposal |
-| POST | `/api/setup/extract` | turn a free-form brain dump into a goals/constraints preview (not saved; needs `GROQ_API_KEY`) |
 | POST | `/api/plan/today/events/batch` | apply several plan events at once |
 | GET | `/api/notes` | list notes, newest first |
 | POST | `/api/notes` | create a note `{title, body}` (201) |
@@ -173,15 +171,15 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | DELETE | `/api/notes/{id}` | delete a note (204) |
 | GET | `/api/memory/search?q=&k=&source=` | semantic search over notes and past days (`k` 1-20, default 8; `source` NOTE or DAY) |
 
-Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `deadline` is optional: send `deadline: null` (or omit it,
-or send an empty string) for no deadline. Errors are RFC 7807 `application/problem+json`
+Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `minutesPerWeek` is 0 to 10080 in steps of 30. Errors are
+RFC 7807 `application/problem+json`
 (`404` no setup yet, `409` proposal not available, `422` unknown block id, `400` invalid request, `502` assistant unavailable,
 `503` AI features are not configured).
 
 ## Assistant (optional)
 
-Set `GROQ_API_KEY` before starting the backend to turn on the chat at the bottom of Today (and the brain-dump
-box on the Setup page); get a free key at https://console.groq.com:
+Set `GROQ_API_KEY` before starting the backend to turn on the chat at the bottom of Today; get a free key at
+https://console.groq.com:
 
 ```bash
 export GROQ_API_KEY=gsk_...      # PowerShell: $env:GROQ_API_KEY="gsk_..."
@@ -191,10 +189,9 @@ cd backend && ./mvnw spring-boot:run
 Talk to it like "padel got canceled" or "I'm tired, what should I drop today?". The agent looks at today's plan,
 the rest of the week, your goals and your memory (notes and past days) with tools, can simulate changes before
 suggesting them, and proposes one change set per message. Press Apply to make the change or Reject to discard
-it; the assistant never changes the plan itself. Press **Review my week** for a weekly review: the agent looks
-at what was planned, done, cancelled and postponed this week and proposes new goal priorities; Apply saves them
-and re-plans the days later this week that you have not touched yet (today and days you acted on stay as they
-are). Conversations are saved one per day; earlier days can be
+it; the assistant never changes the plan itself. Press **Review my week** for a weekly review: the agent sums
+up what was planned, done, cancelled and postponed this week and how each goal's hours went; it proposes nothing.
+Conversations are saved one per day; earlier days can be
 viewed under "Earlier chats". Without the key, `GET /api/config` reports `aiEnabled:false` and the chat does
 not appear - every other feature is unaffected. The model used is `openai/gpt-oss-120b` (configurable via the
 `app.ai.model` property).
@@ -218,8 +215,9 @@ Past days are indexed when the backend starts and every night at 00:05.
 
 ## How planning works
 
-- **Goals** get a priority (1-5); each weekly quota (e.g. "Learning: 5h/week") is split across its goals by
-  priority, with a boost for goals whose deadline is close.
+- **Goals** each have hours per week. They are cut into sessions of up to an hour (the goal's session length),
+  at most one session of a goal per day, spread over the week. Within a day, goals keep the order of the setup.
+  A goal with 0 hours gets no time.
 - A day is **generated the first time it is requested** and then stored. Editing your setup later never
   rewrites a day that was already generated. Generation is lazy in two more places: a postpone can generate
   and persist the remaining days of that week while it looks for room, and an ad-hoc event with a future
@@ -231,8 +229,8 @@ Past days are indexed when the backend starts and every night at 00:05.
 
 ## Known limitations
 
-- Editing the setup mid-week can double-count or skip a little quota for the current week (already-done work
-  is not yet subtracted from the weekly allocation).
+- Editing the setup mid-week can double-count or skip a little of a goal's hours for the current week
+  (already-done work is not yet subtracted from the weekly allocation).
 - A postponed block has no notion of "the past" yet (the engine has no clock).
 - Cancelling a block frees its slot; it is not automatically refilled with the next-best task.
 - `SET_ENERGY` is accepted but does not change the plan yet.
@@ -254,7 +252,8 @@ The same three commands run on every push and pull request (`.github/workflows/c
 Each feature has a design spec and a task plan, written before the code:
 
 - [`docs/superpowers/specs/`](docs/superpowers/specs/) — design specs: the original design, the backend and UI,
-  natural-language commands, brain-dump extraction, RAG memory, the chat agent, the weekly review
+  natural-language commands, brain-dump extraction, RAG memory, the chat agent, the weekly review, the shared UI
+  style, and the goal form setup (which replaced the text setup, quotas, priorities and brain-dump extraction)
 - [`docs/superpowers/plans/`](docs/superpowers/plans/) — the implementation plan for each of them
 
 The Phase 2 documents describe an earlier version of the assistant built on another provider; the backend was
