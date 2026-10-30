@@ -433,6 +433,31 @@ describe('NotesPage', () => {
     expect(screen.getByLabelText('Title')).toHaveValue('')
   })
 
+  it('shows the newest 12 notes until Show all is clicked', async () => {
+    const user = userEvent.setup()
+    const many = Array.from({ length: 13 }, (_, i) => ({ ...GYM, id: i + 1, title: `Note ${i + 1}` }))
+    mockApi({ 'GET /api/notes': () => jsonResponse(many) })
+    render(<NotesPage />)
+
+    const board = await screen.findByRole('list', { name: 'Your notes' })
+    expect(within(board).getAllByRole('listitem')).toHaveLength(12)
+    expect(within(board).queryByRole('button', { name: 'Note 13' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Show all (13)' }))
+    expect(within(board).getAllByRole('listitem')).toHaveLength(13)
+
+    await user.click(screen.getByRole('button', { name: 'Show fewer' }))
+    expect(within(board).getAllByRole('listitem')).toHaveLength(12)
+  })
+
+  it('has no Show all button with 12 notes or fewer', async () => {
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM]) })
+    render(<NotesPage />)
+    await screen.findByRole('button', { name: 'Gym' })
+
+    expect(screen.queryByRole('button', { name: /Show all/ })).not.toBeInTheDocument()
+  })
+
   it('disables the title and body fields while a save is in flight', async () => {
     const user = userEvent.setup()
     let finish: (response: Response) => void = () => {}

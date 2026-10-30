@@ -25,6 +25,9 @@ interface Touched {
 
 const UNTOUCHED: Touched = { title: false, body: false }
 
+// The board shows the newest notes only until the user asks for all; search reaches the older ones.
+const BOARD_LIMIT = 12
+
 const STICKY_COLORS = ['yellow', 'pink', 'green'] as const
 const STICKY_TILTS = 4
 
@@ -50,6 +53,7 @@ export function NotesPage() {
   const dismissNotice = useCallback(() => setNotice([]), [])
   const titleMissing = draft.title.trim() === ''
   const bodyMissing = draft.body.trim() === ''
+  const [showAll, setShowAll] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<MemoryResult[] | null>(null)
   const [busy, setBusy] = useState(false)
@@ -182,7 +186,7 @@ export function NotesPage() {
       {notes && notes.length === 0 && <p className="muted">No notes yet.</p>}
       {notes && notes.length > 0 && (
         <ul className="sticky-board" aria-label="Your notes">
-          {notes.map((note) => (
+          {(showAll ? notes : notes.slice(0, BOARD_LIMIT)).map((note) => (
             <li key={note.id} className={stickyClasses(note.id, note.id === draft.id)}>
               {/* the accessible name is the title alone; the preview and date are there to look at */}
               <button
@@ -201,6 +205,11 @@ export function NotesPage() {
             </li>
           ))}
         </ul>
+      )}
+      {notes && notes.length > BOARD_LIMIT && (
+        <button type="button" className="board-toggle" onClick={() => setShowAll(!showAll)}>
+          {showAll ? 'Show fewer' : `Show all (${notes.length})`}
+        </button>
       )}
 
       <div className="card">
