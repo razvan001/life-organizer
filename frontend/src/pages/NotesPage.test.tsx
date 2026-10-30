@@ -397,6 +397,42 @@ describe('NotesPage', () => {
     expect(screen.getByLabelText('Title')).toHaveValue('Study')
   })
 
+  it('has no New note button; Clear is in the form and disabled while the form is empty', async () => {
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM]) })
+    render(<NotesPage />)
+    await screen.findByRole('button', { name: 'Gym' })
+
+    expect(screen.queryByRole('button', { name: 'New note' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Clear' })).toBeDisabled()
+  })
+
+  it('Clear empties a typed draft after confirming', async () => {
+    const user = userEvent.setup()
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    mockApi({ 'GET /api/notes': () => jsonResponse([]) })
+    render(<NotesPage />)
+    await user.type(await screen.findByLabelText('Title'), 'Draft')
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+
+    expect(window.confirm).toHaveBeenCalledWith('Discard unsaved changes?')
+    expect(screen.getByLabelText('Title')).toHaveValue('')
+  })
+
+  it('Clear closes an open note without prompting when nothing changed', async () => {
+    const user = userEvent.setup()
+    const confirmSpy = vi.spyOn(window, 'confirm')
+    mockApi({ 'GET /api/notes': () => jsonResponse([GYM]) })
+    render(<NotesPage />)
+    await user.click(await screen.findByRole('button', { name: 'Gym' }))
+
+    await user.click(screen.getByRole('button', { name: 'Clear' }))
+
+    expect(confirmSpy).not.toHaveBeenCalled()
+    expect(screen.getByRole('heading', { name: 'New note' })).toBeInTheDocument()
+    expect(screen.getByLabelText('Title')).toHaveValue('')
+  })
+
   it('disables the title and body fields while a save is in flight', async () => {
     const user = userEvent.setup()
     let finish: (response: Response) => void = () => {}

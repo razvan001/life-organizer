@@ -177,12 +177,7 @@ export function NotesPage() {
         </div>
       )}
 
-      <div className="notes-header">
-        <h3>Your notes</h3>
-        <button type="button" disabled={busy} onClick={() => replaceDraft(EMPTY)}>
-          New note
-        </button>
-      </div>
+      <h3>Your notes</h3>
       {loadError != null && notes === null && <p role="alert">{errorMessage(loadError)}</p>}
       {notes && notes.length === 0 && <p className="muted">No notes yet.</p>}
       {notes && notes.length > 0 && (
@@ -252,6 +247,14 @@ export function NotesPage() {
         </div>
         <button className="btn-primary" type="button" disabled={busy || titleMissing || bodyMissing} onClick={save}>
           Save note
+        </button>{' '}
+        {/* empties the form; on an open note it also closes it, so the form is back to a new note */}
+        <button
+          type="button"
+          disabled={busy || (draft.id === null && draft.title === '' && draft.body === '')}
+          onClick={() => replaceDraft(EMPTY)}
+        >
+          Clear
         </button>{' '}
         {draft.id !== null && (
           <button className="btn-danger" type="button" disabled={busy} onClick={remove}>
