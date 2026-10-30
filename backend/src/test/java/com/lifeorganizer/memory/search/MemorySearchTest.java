@@ -47,4 +47,15 @@ class MemorySearchTest {
 
         assertThat(search.search("anything", 2, SourceType.NOTE)).hasSize(2);
     }
+
+    @Test
+    void dropsHitsBelowTheRelevanceFloor() {
+        when(store.search(any(), eq(20), isNull())).thenReturn(List.of(
+            hit(SourceType.NOTE, "1", "related", 0.5),
+            hit(SourceType.NOTE, "2", "on the floor", MemorySearch.MIN_SCORE),
+            hit(SourceType.NOTE, "3", "unrelated", 0.2)));
+
+        assertThat(search.search("anything", 5, null)).extracting(MemoryHit::text)
+            .containsExactly("related", "on the floor");
+    }
 }

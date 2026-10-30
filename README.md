@@ -169,7 +169,7 @@ Restart the backend and call `GET /api/plan/today` again: your done/postponed st
 | POST | `/api/notes` | create a note `{title, body}` (201) |
 | PUT | `/api/notes/{id}` | update a note |
 | DELETE | `/api/notes/{id}` | delete a note (204) |
-| GET | `/api/memory/search?q=&k=&source=` | semantic search over notes and past days (`k` 1-20, default 8; `source` NOTE or DAY) |
+| GET | `/api/memory/search?q=&k=&source=` | semantic search over notes and past days (`k` 1-20, default 8, at most; hits below cosine 0.3 are dropped; `source` NOTE or DAY) |
 
 Times are `"HH:mm"`, dates `"yyyy-MM-dd"`. A goal's `minutesPerWeek` is 0 to 10080 in steps of 30. Errors are
 RFC 7807 `application/problem+json`

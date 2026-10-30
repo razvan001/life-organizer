@@ -30,11 +30,21 @@ public class MemorySearch {
     /** Chunks fetched per wanted result, so deduplicating by source still leaves k results in most cases. */
     static final int OVER_FETCH = 4;
 
+    /**
+     * Cosine similarity below which a hit is noise. Top-k always returns k rows, so without a floor a query
+     * with one real match is padded with unrelated sources. With MiniLM, real matches scored 0.37 and up
+     * and noise 0.25 and down.
+     */
+    static final double MIN_SCORE = 0.3;
+
     public List<MemoryHit> search(String query, int k, SourceType filter) {
         List<MemoryHit> chunks = store.search(embedder.embed(query), k * OVER_FETCH, filter);
         // Results are per chunk; keep each source's best chunk so one long note cannot fill every slot.
         Map<String, MemoryHit> bestPerSource = new LinkedHashMap<>();
         for (MemoryHit chunk : chunks) {
+            if (chunk.score() < MIN_SCORE) {
+                break; // chunks come best first, so the rest are below the floor too
+            }
             bestPerSource.putIfAbsent(chunk.sourceType() + ":" + chunk.sourceId(), chunk);
         }
         List<MemoryHit> hits = bestPerSource.values().stream().limit(k).toList();

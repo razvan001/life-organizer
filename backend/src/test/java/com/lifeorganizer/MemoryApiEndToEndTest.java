@@ -54,7 +54,8 @@ class MemoryApiEndToEndTest {
         mvc.perform(get("/api/memory/search").param("q", "tired after a workout"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].title").value("Energy"))
-            .andExpect(jsonPath("$[0].sourceType").value("NOTE"));
+            .andExpect(jsonPath("$[0].sourceType").value("NOTE"))
+            .andExpect(jsonPath("$.length()").value(1)); // the car and recipe notes fall below the floor
     }
 
     @Test
