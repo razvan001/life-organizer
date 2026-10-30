@@ -54,13 +54,15 @@ export function SetupEditor({ draft, onChange, onGoalAdded, newGoalIds, disabled
                         onChange={(minutesPerWeek) => onChange(updateGoal(draft, goal.id, { minutesPerWeek }))}
                       />
                       <span className="unit">h / week</span>
+                      {/* a short visible label keeps every row's hours box in the same column */}
                       <button
                         type="button"
                         className="btn-danger btn-small"
+                        aria-label={`Remove ${goal.name}`}
                         disabled={disabled}
                         onClick={() => onChange(removeGoal(draft, goal.id))}
                       >
-                        Remove {goal.name}
+                        Remove
                       </button>
                       {problem && (
                         <p role="alert" className="row-problem">

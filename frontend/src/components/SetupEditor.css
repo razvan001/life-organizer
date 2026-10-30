@@ -63,6 +63,8 @@
 
 input.number {
   width: 4rem;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .days {

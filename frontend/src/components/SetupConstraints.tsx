@@ -45,10 +45,11 @@ export function SetupConstraints({ draft, onChange, disabled }: Props) {
                 <button
                   type="button"
                   className="btn-danger btn-small"
+                  aria-label={`Remove fixed block ${value.label}`}
                   disabled={disabled}
                   onClick={() => onChange(removeConstraint(draft, key))}
                 >
-                  Remove fixed block {value.label}
+                  Remove
                 </button>
               </div>
               {problem && <p role="alert">{problem}</p>}
