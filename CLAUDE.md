@@ -115,5 +115,7 @@ cd frontend && npm run build                  # tsc -b type-check + production b
 - Features go through `docs/superpowers/specs/` (design) and `docs/superpowers/plans/` (task plans); read the
   relevant spec before changing a feature. Phase 2 docs still say Claude/Anthropic; the backend was migrated to
   Groq afterwards.
+- When you notice an improvement outside the current task, add an entry to `docs/BACKLOG.md` (format at its top)
+  and say so. Do not fix it in the same change.
 - Next planned work: Phase 3b slice 3, conflict resolution (`ConflictDetector` is not wired yet; see the original
   design spec `2026-09-17-life-organizer-design.md`).
