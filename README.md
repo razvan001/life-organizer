@@ -275,3 +275,7 @@ Each feature has a design spec and a task plan, written before the code:
 
 The Phase 2 documents describe an earlier version of the assistant built on another provider; the backend was
 later moved to Groq and the one-shot command box was replaced by the chat agent.
+
+## License
+
+[MIT](LICENSE)
