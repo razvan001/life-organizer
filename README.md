@@ -17,11 +17,15 @@ showing exactly what would change; nothing happens until Apply.
 
 ![Assistant chat with a proposal card and Apply / Reject buttons](docs/screenshots/today-proposal.png)
 
-| Today's plan | Semantic search over notes and past days |
+| Today's plan | Semantic search: "tired after a workout" |
 |---|---|
-| ![Today's timeline with done, cancelled and free blocks](docs/screenshots/today-plan.png) | ![Searching "chess" finds related notes and a past-day summary](docs/screenshots/notes-search.png) |
+| ![Today's timeline with done, cancelled and free blocks](docs/screenshots/today-plan.png) | ![Searching "tired after a workout" finds notes about gym, leg day and sleep without sharing those words](docs/screenshots/notes-search.png) |
 | **Setup: goals with hours per week** | **Setup: fixed blocks** |
 | ![Goals grouped by category, each with hours per week](docs/screenshots/setup-goals.png) | ![Fixed blocks such as work and sleep, with weekdays](docs/screenshots/setup-fixed-blocks.png) |
+
+**Your notes** — saved notes are what the assistant and the search draw on.
+
+![Notes shown as pinned sticky notes](docs/screenshots/notes-board.png)
 
 ## What is in it
 

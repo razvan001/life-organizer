@@ -47,3 +47,16 @@ Entry format: title, date found, problem with evidence, fix idea, size (small / 
   could each persist a diff against stale blocks. Single user on localhost, so unlikely.
 - **Fix idea:** take the same lock in `applyEvents`, with a `@SpringBootTest` that runs two calls in parallel.
 - **Size:** small.
+
+## Sleep is recognized by its name only
+
+- **Found:** 2026-10-31, while taking README screenshots.
+- **Problem:** `DayScheduler.findSleepBlock` picks the fixed block whose label equals "sleep" (case-insensitive).
+  A block named `Sleep1` was not recognized: the day fell back to 07:00-23:00 and every generated day stored the
+  warning "Skipping overnight block 'Sleep1' ... (only Sleep supports overnight ranges)". Renaming it to `Sleep`
+  fixes only days generated afterwards; days already stored keep the old blocks and warning, because days are
+  never regenerated. Nothing in the Setup form tells the user that the name matters.
+- **Fix idea:** treat any overnight fixed block as the sleep window (at most one allowed, checked in
+  `SetupService`), or add an explicit "this is my sleep" choice in the form. At least say in the form that an
+  overnight block must be called Sleep.
+- **Size:** small for the form hint; medium for the overnight-block rule (engine plus setup validation).
