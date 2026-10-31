@@ -304,9 +304,9 @@ describe('NotesPage', () => {
     render(<NotesPage />)
     await screen.findByText('No notes yet.')
 
-    expect(screen.getByText('0 / 255')).toBeInTheDocument()
+    expect(screen.getByText('0 / 50')).toBeInTheDocument()
     expect(screen.getByText('0 / 500')).toBeInTheDocument()
-    expect(screen.getByLabelText('Title')).toHaveAttribute('maxLength', '255')
+    expect(screen.getByLabelText('Title')).toHaveAttribute('maxLength', '50')
     expect(screen.getByLabelText('Body')).toHaveAttribute('maxLength', '500')
 
     await user.type(screen.getByLabelText('Body'), 'hello')

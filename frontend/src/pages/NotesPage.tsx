@@ -14,7 +14,7 @@ interface Draft {
 const EMPTY: Draft = { id: null, title: '', body: '' }
 
 // Same limits the backend enforces (NoteService).
-const TITLE_MAX = 255
+const TITLE_MAX = 50
 const BODY_MAX = 500
 
 /** Which fields the user has left at least once; a "required" message only shows for those. */

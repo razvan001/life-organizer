@@ -16,7 +16,7 @@ import java.util.List;
 @Service
 public class NoteService {
 
-    static final int MAX_TITLE = 255;
+    static final int MAX_TITLE = 50;
     static final int MAX_BODY = 500;
 
     private final NoteRepository notes;

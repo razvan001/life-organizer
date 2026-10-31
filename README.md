@@ -10,6 +10,19 @@ tool-calling LLM agent you can talk to ("padel got canceled and I'm tired", "rev
 plan, your week and your own notes, simulates changes with the real engine, and shows a proposal card. Nothing
 changes until you press **Apply**.
 
+## Screenshots
+
+**The assistant proposes, you decide.** The agent turned "add workout from 17 to 18" into a proposal card
+showing exactly what would change; nothing happens until Apply.
+
+![Assistant chat with a proposal card and Apply / Reject buttons](docs/screenshots/today-proposal.png)
+
+| Today's plan | Semantic search over notes and past days |
+|---|---|
+| ![Today's timeline with done, cancelled and free blocks](docs/screenshots/today-plan.png) | ![Searching "chess" finds related notes and a past-day summary](docs/screenshots/notes-search.png) |
+| **Setup: goals with hours per week** | **Setup: fixed blocks** |
+| ![Goals grouped by category, each with hours per week](docs/screenshots/setup-goals.png) | ![Fixed blocks such as work and sleep, with weekdays](docs/screenshots/setup-fixed-blocks.png) |
+
 ## What is in it
 
 - **Scheduling engine** — plain Java, no framework. Each goal has its own hours per week ("Gym: 4 h"); they are

@@ -116,8 +116,8 @@ class NoteServiceTest {
     void invalidInputIsRejected() {
         assertThatThrownBy(() -> notes.create(new NoteRequest(" ", "b")))
             .isInstanceOf(InvalidRequestException.class).hasMessage("title is required");
-        assertThatThrownBy(() -> notes.create(new NoteRequest("t".repeat(256), "b")))
-            .isInstanceOf(InvalidRequestException.class).hasMessage("title must be at most 255 characters");
+        assertThatThrownBy(() -> notes.create(new NoteRequest("t".repeat(51), "b")))
+            .isInstanceOf(InvalidRequestException.class).hasMessage("title must be at most 50 characters");
         assertThatThrownBy(() -> notes.create(new NoteRequest("t", "b".repeat(501))))
             .isInstanceOf(InvalidRequestException.class).hasMessage("body must be at most 500 characters");
     }
